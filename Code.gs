@@ -22,7 +22,7 @@ function doGet(e) {
   h.push('.ln{font-size:22px;font-weight:700}');
   h.push('.lt{font-size:13px;color:#666;margin-top:4px}');
   h.push('.gr{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}');
-  h.push('.bx{padding:12px;border-radius:12px;text-align:center}');
+  h.push('.bx{padding:12px;border-radius:12px;text-align:center;cursor:pointer}');
   h.push('.bg{background:#E8F5E9}');
   h.push('.bo{background:#FFF3E0}');
   h.push('.br{background:#FFEBEE}');
@@ -89,10 +89,10 @@ function doGet(e) {
   h.push('s+="<div class=lh><div><div class=ln>"+l+"</div><div class=lt>"+t+" unit total</div></div>";');
   h.push('s+="<div class=ar>&#10132;</div></div>";');
   h.push('s+="<div class=gr>";');
-  h.push('s+="<div class=bx bg><div class=nm ng>"+(x.Available||0)+"</div><div class=lb>Available</div></div>";');
-  h.push('s+="<div class=bx bo><div class=nm no>"+(x.Sold||0)+"</div><div class=lb>Sold</div></div>";');
-  h.push('s+="<div class=bx br><div class=nm nr>"+(x.problem||0)+"</div><div class=lb>Problem</div></div>";');
-  h.push('s+="<div class=bx bb><div class=nm nb>"+(x.Returned||0)+"</div><div class=lb>Return</div></div>";');
+  h.push('s+="<div class=bx bg data-act=detail data-loc="+l+" data-st=Available><div class=nm ng>"+(x.Available||0)+"</div><div class=lb>Available</div></div>";');
+  h.push('s+="<div class=bx bo data-act=detail data-loc="+l+" data-st=Sold><div class=nm no>"+(x.Sold||0)+"</div><div class=lb>Sold</div></div>";');
+  h.push('s+="<div class=bx br data-act=detail data-loc="+l+" data-st=problem><div class=nm nr>"+(x.problem||0)+"</div><div class=lb>Problem</div></div>";');
+  h.push('s+="<div class=bx bb data-act=detail data-loc="+l+" data-st=Returned><div class=nm nb>"+(x.Returned||0)+"</div><div class=lb>Return</div></div>";');
   h.push('s+="</div></div>"}');
   h.push('s+="</div>";');
   h.push('document.getElementById("app").innerHTML=s');
