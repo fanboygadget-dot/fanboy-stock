@@ -14,6 +14,12 @@ function doGet(e) {
   h.push('.hdr .sub{font-size:12px;opacity:.8;margin-top:4px}');
   h.push('.bk{color:#fff;font-size:14px;padding:8px 16px;background:rgba(255,255,255,.2);border-radius:20px;cursor:pointer;border:none}');
   h.push('.w{max-width:600px;margin:0 auto;padding:16px}');
+  h.push('.sr{width:100%;padding:14px 18px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;margin-bottom:16px;box-sizing:border-box;background:#fff}');
+  h.push('.bd{font-size:11px;padding:4px 8px;border-radius:6px;color:#fff}');
+  h.push('.ba{background:#2E7D32}'); // Available
+  h.push('.bs{background:#E65100}'); // Sold
+  h.push('.bp{background:#C62828}'); // Problem
+  h.push('.bt{background:#1565C0}'); // Return
   h.push('.cd{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}');
   h.push('.lh{display:flex;justify-content:space-between;align-items:center}');
   h.push('.ln{font-size:22px;font-weight:700}');
