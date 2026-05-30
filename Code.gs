@@ -15,12 +15,8 @@ function doGet(e) {
   h.push('.bk{color:#fff;font-size:14px;padding:8px 16px;background:rgba(255,255,255,.2);border-radius:20px;cursor:pointer;border:none}');
   h.push('.w{max-width:600px;margin:0 auto;padding:16px}');
   h.push('.sr{width:100%;padding:14px 18px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;margin-bottom:16px;box-sizing:border-box;background:#fff}');
-  h.push('.bd{font-size:11px;padding:4px 8px;border-radius:6px;color:#fff}');
+  h.push('.sr:focus{outline:none;border-color:#007AFF}');
   h.push('.mi{font-size:12px;color:#666;margin-top:6px}');
-  h.push('.ba{background:#2E7D32}'); // Available
-  h.push('.bs{background:#E65100}'); // Sold
-  h.push('.bp{background:#C62828}'); // Problem
-  h.push('.bt{background:#1565C0}'); // Return
   h.push('.cd{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}');
   h.push('.lh{display:flex;justify-content:space-between;align-items:center}');
   h.push('.ln{font-size:22px;font-weight:700}');
@@ -49,30 +45,29 @@ function doGet(e) {
   h.push('.dg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}');
   h.push('.dl{font-size:12px;color:#999;text-transform:uppercase}');
   h.push('.dv{font-size:16px;font-weight:600;margin-top:4px}');
-  h.push('.bd{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600}');
-  h.push('.ba{background:#E8F5E9;color:#2E7D32}');
-  h.push('.bs{background:#FFF3E0;color:#E65100}');
-  h.push('.bp{background:#FFEBEE;color:#C62828}');
-  h.push('.bt{background:#E3F2FD;color:#1565C0}');
   h.push('.tb{background:#1d1d1f;color:#fff;padding:16px 20px;border-radius:12px;margin-top:16px;display:flex;justify-content:space-between}');
-  h.push('.sr{width:100%;padding:12px 16px;border:2px solid #e0e0e0;border-radius:12px;font-size:16px;margin-bottom:16px;background:#fff}');
-  h.push('.sr:focus{outline:none;border-color:#007AFF}');
   h.push('.em{text-align:center;padding:40px;color:#999;font-size:16px}');
   h.push('.ld{text-align:center;padding:40px;color:#999}');
   h.push('.it-sold{background:#FFEBEE;border-left:4px solid #C62828}');
   h.push('.it-sold .mn{color:#C62828}');
   h.push('.ar{font-size:20px;color:#007AFF}');
   h.push('.fw{font-weight:700}');
-  h.push('.bd{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600}');
   h.push('.pr{margin-top:20px;font-size:28px;font-weight:700;color:#007AFF}');
+  h.push('.st-available{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#E8F5E9;color:#2E7D32}');
+  h.push('.st-sold{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#FFF3E0;color:#E65100}');
+  h.push('.st-problem{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#FFEBEE;color:#C62828}');
+  h.push('.st-returned{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#E3F2FD;color:#1565C0}');
   h.push('</style></head><body>');
   h.push('<div id="app"><div class="ld">Loading...</div></div>');
 
   // Client-side JavaScript
-  // Uses event delegation (data-act attributes) to avoid inline onclick quote issues
   h.push('<script>');
   h.push('function fmt(n){if(!n)return"0";var s=String(n),r="",c=0;for(var i=s.length-1;i>=0;i--){r=s[i]+r;c++;if(c%3===0&&i>0)r="."+r}return r}');
   h.push('function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}');
+
+  // Status helper
+  h.push('function stCls(s){s=s.toLowerCase();if(s==="sold")return"st-sold";if(s==="problem")return"st-problem";if(s==="returned")return"st-returned";return"st-available"}');
+  h.push('function stLbl(s){s=s.toLowerCase();if(s==="sold")return"SOLD";if(s==="problem")return"PROBLEM";if(s==="returned")return"RETURN";return"AVAILABLE"}');
 
   // goHome
   h.push('function goHome(){');
@@ -85,11 +80,11 @@ function doGet(e) {
   h.push('var s="";');
   h.push('s+="<div class=hdr><h1>Fanboy Stock Viewer</h1><div class=sub>Cek Stok Real-time</div></div>";');
   h.push('s+="<div class=w>";');
-  h.push('s+="<input type=text class=sr placeholder=Cari semua barang... data-act=gsearch>";');
+  h.push('s+="<input type=text class=sr placeholder=\\u200B Cari semua barang... data-act=gsearch>";');
   h.push('s+="<div id=gresults></div>";');
   h.push('var locs=["JOGJA","SOLO","BALI"]');
   h.push('for(var i=0;i<locs.length;i++){');
-  h.push('var l=locs[i],x=c[l],t=(x.Available||0)+(x.Sold||0)+(x.problem||0)+(x.Returned||0);');
+  h.push('var l=locs[i],x=c[l],t=(x.Available||0)+(x.Sold||0)+(x.problem||0)+(x.Returned||0)');
   h.push('s+="<div class=cd data-act=detail data-loc="+l+" data-st=Available>";');
   h.push('s+="<div class=lh><div><div class=ln>"+l+"</div><div class=lt>"+t+" unit total</div></div>";');
   h.push('s+="<div class=ar>&#10132;</div></div>";');
@@ -115,7 +110,7 @@ function doGet(e) {
   h.push('s+="<div class=hdr><button class=bk data-act=home>&#8592; Kembali</button>";');
   h.push('s+="<h1>"+esc(loc)+" - "+esc(st)+"</h1><div class=sub>"+items.length+" unit</div></div>";');
   h.push('s+="<div class=w>";');
-  h.push('s+="<input type=text class=sr placeholder=Cari model atau SN... data-act=search>";');
+  h.push('s+="<input type=text class=sr placeholder=\\u200B Cari model atau SN... data-act=search>";');
   h.push('if(!items.length)s+="<div class=em>Tidak ada item</div>";');
   h.push('var total=0;window._sdata=[];s+="<div id=list>";');
   h.push('for(var i=0;i<items.length;i++){');
@@ -143,14 +138,13 @@ function doGet(e) {
   // showItem
   h.push('function showItem(it){');
   h.push('if(!it){document.getElementById("app").innerHTML="<div class=em>Item tidak ditemukan</div>";return}');
-  h.push('var cls={Available:"ba",Sold:"bs",problem:"bp",Returned:"bt"};');
   h.push('var s="";');
-  h.push('s+="<div class=hdr><button class=bk data-act=detail data-loc="+esc(it.lokasi)+" data-st="+esc(it.status)+">&#8592; Back</button>";');
+  h.push('s+="<div class=hdr><button class=bk data-act=home>&#8592; Back</button>";');
   h.push('s+="<h1>Detail Unit</h1></div>";');
   h.push('s+="<div class=w><div class=dt>";');
   h.push('s+="<div class=dtt>"+esc(it.model)+"</div>";');
   h.push('s+="<div class=dts>"+esc(it.spec)+"</div>";');
-  h.push('s+="<span class=bd "+(cls[it.status]||"ba")+">"+esc(it.status)+"</span>";');
+  h.push('s+="<span class="+stCls(it.status)+">"+stLbl(it.status)+"</span>";');
   h.push('s+="<div class=pr>Rp "+fmt(it.harga)+"</div>";');
   h.push('s+="<div class=dg>";');
   h.push('s+="<div><div class=dl>Serial Number</div><div class=dv>"+esc(it.sn)+"</div></div>";');
@@ -176,23 +170,20 @@ function doGet(e) {
   h.push('var s="";');
   h.push('for(var i=0;i<items.length;i++){');
   h.push('var it=items[i];');
-  h.push('var st=it.status.toLowerCase();');
-  h.push('var cls=st==="sold"?"bs":st==="problem"?"bp":st==="returned"?"bt":"ba";');
-  h.push('var stLabel=st==="sold"?"SOLD":st==="problem"?"PROBLEM":st==="returned"?"RETURN":"AVAILABLE";');
   h.push('s+="<div class=it data-act=item data-sn="+esc(it.sn)+">";');
   h.push('s+="<div class=mn>"+esc(it.model)+"</div>";');
   h.push('s+="<div class=ms>"+esc(it.spec)+"</div>";');
   h.push('s+="<div class=mp>Rp "+fmt(it.harga)+"</div>";');
-  h.push('s+="<div class=tg><span class=bd "+cls+">"+stLabel+"</span>";');
+  h.push('s+="<div class=tg><span class="+stCls(it.status)+">"+stLbl(it.status)+"</span>";');
   h.push('s+="<span class=t>"+esc(it.lokasi)+"</span>";');
   h.push('s+="<span class=t>SN: "+esc(it.sn)+"</span></div>";');
-  h.push('if(st==="sold"&&it.history)s+="<div class=mi>History: "+esc(it.history)+"</div>";');
+  h.push('if(it.history)s+="<div class=mi>History: "+esc(it.history)+"</div>";');
   h.push('if(it.tgl)s+="<div class=mi>Masuk: "+esc(it.tgl)+"</div>";');
   h.push('s+="</div>"}');
   h.push('document.getElementById("gresults").innerHTML=s');
   h.push('}');
 
-  // Event delegation - no inline onclick needed
+  // Event delegation
   h.push('document.addEventListener("click",function(e){');
   h.push('var el=e.target,act=el.getAttribute("data-act");');
   h.push('if(!act){el=el.closest("[data-act]");act=el?el.getAttribute("data-act"):null}');
