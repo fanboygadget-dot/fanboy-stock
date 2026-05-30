@@ -16,6 +16,7 @@ function doGet(e) {
   h.push('.w{max-width:600px;margin:0 auto;padding:16px}');
   h.push('.sr{width:100%;padding:14px 18px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;margin-bottom:16px;box-sizing:border-box;background:#fff}');
   h.push('.bd{font-size:11px;padding:4px 8px;border-radius:6px;color:#fff}');
+  h.push('.mi{font-size:12px;color:#666;margin-top:6px}');
   h.push('.ba{background:#2E7D32}'); // Available
   h.push('.bs{background:#E65100}'); // Sold
   h.push('.bp{background:#C62828}'); // Problem
@@ -173,16 +174,21 @@ function doGet(e) {
   h.push('function showSearchResults(items){');
   h.push('if(!items.length){document.getElementById("gresults").innerHTML="<div class=em>Tidak ditemukan</div>";return}');
   h.push('var s="";');
-  h.push('var cls={Available:"ba",Sold:"bs",problem:"bp",Returned:"bt"};');
   h.push('for(var i=0;i<items.length;i++){');
   h.push('var it=items[i];');
+  h.push('var st=it.status.toLowerCase();');
+  h.push('var cls=st==="sold"?"bs":st==="problem"?"bp":st==="returned"?"bt":"ba";');
+  h.push('var stLabel=st==="sold"?"SOLD":st==="problem"?"PROBLEM":st==="returned"?"RETURN":"AVAILABLE";');
   h.push('s+="<div class=it data-act=item data-sn="+esc(it.sn)+">";');
   h.push('s+="<div class=mn>"+esc(it.model)+"</div>";');
   h.push('s+="<div class=ms>"+esc(it.spec)+"</div>";');
   h.push('s+="<div class=mp>Rp "+fmt(it.harga)+"</div>";');
-  h.push('s+="<div class=tg><span class=bd "+(cls[it.status]||"ba")+">"+esc(it.status)+"</span>";');
+  h.push('s+="<div class=tg><span class=bd "+cls+">"+stLabel+"</span>";');
   h.push('s+="<span class=t>"+esc(it.lokasi)+"</span>";');
-  h.push('s+="<span class=t>SN: "+esc(it.sn)+"</span></div></div>"}');
+  h.push('s+="<span class=t>SN: "+esc(it.sn)+"</span></div>";');
+  h.push('if(st==="sold"&&it.history)s+="<div class=mi>History: "+esc(it.history)+"</div>";');
+  h.push('if(it.tgl)s+="<div class=mi>Masuk: "+esc(it.tgl)+"</div>";');
+  h.push('s+="</div>"}');
   h.push('document.getElementById("gresults").innerHTML=s');
   h.push('}');
 
@@ -276,7 +282,7 @@ function searchAll(q) {
     var sp=String(row[2]||'').toLowerCase();
     var k=String(row[3]||'').toLowerCase();
     if((s+" "+m+" "+sp+" "+k).indexOf(q)>-1) {
-      items.push({sn:String(row[0]||''),model:String(row[1]||''),spec:String(row[2]||''),kondisi:String(row[3]||''),harga:Number(row[7])||0,status:String(row[8]||''),tgl:String(row[9]||''),supplier:String(row[10]||''),lokasi:String(row[11]||'')});
+      items.push({sn:String(row[0]||''),model:String(row[1]||''),spec:String(row[2]||''),kondisi:String(row[3]||''),harga:Number(row[7])||0,status:String(row[8]||'').trim(),tgl:String(row[9]||''),supplier:String(row[10]||''),lokasi:String(row[11]||''),history:String(row[12]||'')});
     }
   }
   items.sort(function(a,b){return a.model.localeCompare(b.model);});
