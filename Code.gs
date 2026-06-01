@@ -204,6 +204,64 @@ function createInvoice(data) {
         var resp = UrlFetchApp.fetch(url, options);
         var result = JSON.parse(resp.getContentText());
         tgSent = result.ok === true;
+
+        // Kirim PDF Invoice
+        if (tgSent) {
+          try {
+            var buyer = data.buyer;
+            var sales = data.sales;
+            var handler = data.handler || '-';
+            var model = String(item[1] || '');
+            var spec = String(item[2] || '');
+            var sn = data.sn;
+            var harga = data.hargaFinal;
+            var payment = data.payment;
+
+            var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+              '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
+              '.header{background:#1d1d1f;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
+              '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
+              '.info{padding:12px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:110px}' +
+              '.items{margin:15px 0}.item-row{display:flex;justify-content:space-between;padding:8px 15px;border-bottom:1px solid #f5f5f5;font-size:13px}' +
+              '.total{background:#1d1d1f;color:#fff;padding:15px 20px;text-align:center;font-size:22px;font-weight:bold;border-radius:0 0 8px 8px}' +
+              '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
+              '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
+              '<div style="margin-top:8px;font-size:14px">INVOICE</div></div>' +
+              '<div class="info"><b>Invoice No:</b> ' + invoiceNo + '</div>' +
+              '<div class="info"><b>Tanggal:</b> ' + today + '</div>' +
+              '<div class="info"><b>Buyer:</b> ' + buyer + '</div>' +
+              '<div class="info"><b>Sales:</b> ' + sales + '</div>' +
+              '<div class="info"><b>Handler:</b> ' + handler + '</div>' +
+              '<div class="info"><b>Pembayaran:</b> ' + payment + '</div>' +
+              '<div class="items"><div class="item-row"><b>Item</b><b>Harga</b></div>' +
+              '<div class="item-row"><div>' + model + '<br><span style="color:#666">' + spec + '</span><br><span style="color:#999">SN: ' + sn + '</span></div>' +
+              '<div style="font-weight:bold">Rp ' + Number(harga).toLocaleString('id-ID') + '</div></div></div>' +
+              '<div class="total">TOTAL: Rp ' + Number(harga).toLocaleString('id-ID') + '</div>' +
+              '<div class="footer">Terima kasih atas pembelian Anda<br>Fanboy Store - Premium Used Device</div>' +
+              '</body></html>';
+
+            var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
+            blob.setContentType('application/pdf');
+            blob.setName('Invoice_' + invoiceNo + '.pdf');
+
+            var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
+            var formData = {
+              'chat_id': invoiceGroupId,
+              'document': blob,
+              'caption': 'Invoice ' + invoiceNo + '\nBuyer: ' + buyer + '\nTotal: Rp ' + Number(harga).toLocaleString('id-ID')
+            };
+            var sendOptions = {
+              'method': 'post',
+              'payload': formData,
+              'muteHttpExceptions': true
+            };
+            var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
+            var pdfResult = JSON.parse(pdfResp.getContentText());
+            tgSent = pdfResult.ok === true;
+          } catch(pdfErr) {
+            // PDF gagal, tapi text notif sudah terkirim
+          }
+        }
       }
     } catch(tgErr) {
       // Telegram gagal, tapi invoice tetap tersimpan
@@ -487,6 +545,66 @@ function createTradeIn(data) {
           'muteHttpExceptions': true
         });
         tgSent = JSON.parse(resp.getContentText()).ok === true;
+
+        // Kirim PDF Trade-In
+        if (tgSent) {
+          try {
+            var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+              '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
+              '.header{background:#C62828;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
+              '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
+              '.section{margin:15px 0;font-size:13px}.section-title{font-weight:bold;font-size:14px;margin:10px 15px 5px;color:#333}' +
+              '.info{padding:10px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:110px}' +
+              '.items{margin:5px 15px}.item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px}' +
+              '.total-row{display:flex;justify-content:space-between;padding:8px 15px;font-size:13px}' +
+              '.total-box{background:#1d1d1f;color:#fff;padding:15px 20px;text-align:center;border-radius:0 0 8px 8px}' +
+              '.total-box .big{font-size:22px;font-weight:bold;margin-top:5px}' +
+              '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
+              '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
+              '<div style="margin-top:8px;font-size:14px">INVOICE TRADE-IN</div></div>' +
+              '<div class="info"><b>Invoice No:</b> ' + invoiceNo + '</div>' +
+              '<div class="info"><b>Tanggal:</b> ' + today + '</div>' +
+              '<div class="info"><b>Buyer:</b> ' + data.buyer + '</div>' +
+              '<div class="info"><b>Sales:</b> ' + data.sales + '</div>' +
+              '<div class="section"><div class="section-title">BELI (Toko beli dari konsumen)</div><div class="items">';
+            for (var b = 0; b < beliProcessed.length; b++) {
+              var bp = beliProcessed[b];
+              pdfHtml += '<div class="item-row"><div>' + bp.model + ' <span style="color:#999">SN: ' + bp.sn + '</span></div><div style="font-weight:bold">Rp ' + Number(bp.harga).toLocaleString('id-ID') + '</div></div>';
+            }
+            pdfHtml += '</div><div class="total-row"><b>Total Beli:</b><b>Rp ' + totalBeli.toLocaleString('id-ID') + '</b></div></div>';
+            pdfHtml += '<div class="section"><div class="section-title">TUKAR (Konsumen kasih ke toko)</div><div class="items">';
+            if (tukarProcessed.length > 0) {
+              for (var t = 0; t < tukarProcessed.length; t++) {
+                var tp = tukarProcessed[t];
+                pdfHtml += '<div class="item-row"><div>' + tp.model + ' <span style="color:#999">SN: ' + tp.sn + '</span></div><div style="font-weight:bold">Rp ' + Number(tp.harga).toLocaleString('id-ID') + '</div></div>';
+              }
+            } else {
+              pdfHtml += '<div class="item-row"><div style="color:#999">-</div><div>-</div></div>';
+            }
+            pdfHtml += '</div><div class="total-row"><b>Total Tukar:</b><b>Rp ' + totalTukar.toLocaleString('id-ID') + '</b></div></div>';
+            pdfHtml += '<div class="total-box"><div>TOTAL DIBAYAR</div><div class="big">Rp ' + totalDibayar.toLocaleString('id-ID') + '</div></div>';
+            pdfHtml += '<div class="footer">Terima kasih atas transaksi Trade-In<br>Fanboy Store - Premium Used Device</div></body></html>';
+
+            var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
+            blob.setContentType('application/pdf');
+            blob.setName('TradeIn_' + invoiceNo + '.pdf');
+
+            var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
+            var formData = {
+              'chat_id': invoiceGroupId,
+              'document': blob,
+              'caption': 'Trade-In ' + invoiceNo + '\nBuyer: ' + data.buyer + '\nDibayar: Rp ' + totalDibayar.toLocaleString('id-ID')
+            };
+            var sendOptions = {
+              'method': 'post',
+              'payload': formData,
+              'muteHttpExceptions': true
+            };
+            var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
+            var pdfResult = JSON.parse(pdfResp.getContentText());
+            tgSent = pdfResult.ok === true;
+          } catch(pdfErr) { /* PDF gagal, text notif sudah terkirim */ }
+        }
       }
     } catch(tgErr) { tgSent = false; }
 
