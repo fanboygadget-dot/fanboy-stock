@@ -290,54 +290,94 @@ function addServis(data) {
       'MASUK', '', '', 'Web'
     ]);
 
-    // Kirim PDF Servis Intake ke Telegram
+    // Kirim notifikasi Telegram (text dulu, baru PDF)
     var tgSent = false;
+    var tgError = '';
     try {
       var props = PropertiesService.getScriptProperties();
       var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
       var staffGroupId = '-1003922936409';
-      if (botToken) {
-        var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
-          '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
-          '.header{background:#E65100;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
-          '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
-          '.info{padding:12px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:120px}' +
-          '.status-box{background:#E65100;color:#fff;padding:12px;text-align:center;font-size:18px;font-weight:bold}' +
-          '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
-          '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
-          '<div style="margin-top:8px;font-size:14px">SERVIS INTAKE</div></div>' +
-          '<div class="info"><b>Tanggal Masuk:</b> ' + today + '</div>' +
-          '<div class="info"><b>Lokasi:</b> ' + data.lokasi + '</div>' +
-          '<div class="info"><b>SN:</b> ' + sn + '</div>' +
-          '<div class="info"><b>Model:</b> ' + data.model + '</div>' +
-          '<div class="info"><b>Kerusakan:</b> ' + data.kerusakan + '</div>' +
-          '<div class="info"><b>Estimasi:</b> Rp ' + (data.estimasi || '-') + '</div>' +
-          '<div class="info"><b>Konsumen:</b> ' + data.nama + '</div>' +
-          '<div class="info"><b>No. HP:</b> ' + data.hp + '</div>' +
-          '<div class="status-box">STATUS: MASUK</div>' +
-          '<div class="footer">Servis diterima oleh staff web<br>Fanboy Store - Premium Used Device</div></body></html>';
-
-        var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
-        blob.setContentType('application/pdf');
-        blob.setName('Servis_' + sn + '.pdf');
-
-        var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
-        var formData = {
+      if (!botToken) {
+        tgError = 'TELEGRAM_BOT_TOKEN not set';
+      } else {
+        // 1. Kirim text message dulu
+        var msg = 'SERVIS MASUK\n\n' +
+                  'Tanggal: ' + today + '\n' +
+                  'Lokasi: ' + data.lokasi + '\n' +
+                  'SN: ' + sn + '\n' +
+                  'Model: ' + data.model + '\n' +
+                  'Kerusakan: ' + data.kerusakan + '\n' +
+                  'Estimasi: Rp ' + (data.estimasi || '-') + '\n' +
+                  'Konsumen: ' + data.nama + '\n' +
+                  'No. HP: ' + data.hp;
+        var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
+        var payload = {
           'chat_id': staffGroupId,
-          'document': blob,
-          'caption': 'SERVIS MASUK\nSN: ' + sn + '\nModel: ' + data.model + '\nKonsumen: ' + data.nama
+          'text': msg
         };
-        var sendOptions = {
+        var options = {
           'method': 'post',
-          'payload': formData,
+          'contentType': 'application/json',
+          'payload': JSON.stringify(payload),
           'muteHttpExceptions': true
         };
-        var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
-        tgSent = JSON.parse(pdfResp.getContentText()).ok === true;
-      }
-    } catch(tgErr) { tgSent = false; }
+        var resp = UrlFetchApp.fetch(url, options);
+        var result = JSON.parse(resp.getContentText());
+        tgSent = result.ok === true;
 
-    return {ok: true, telegramSent: tgSent};
+        // 2. Kirim PDF Servis Intake
+        if (tgSent) {
+          try {
+            var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+              '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
+              '.header{background:#E65100;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
+              '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
+              '.info{padding:12px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:120px}' +
+              '.status-box{background:#E65100;color:#fff;padding:12px;text-align:center;font-size:18px;font-weight:bold}' +
+              '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
+              '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
+              '<div style="margin-top:8px;font-size:14px">SERVIS INTAKE</div></div>' +
+              '<div class="info"><b>Tanggal Masuk:</b> ' + today + '</div>' +
+              '<div class="info"><b>Lokasi:</b> ' + data.lokasi + '</div>' +
+              '<div class="info"><b>SN:</b> ' + sn + '</div>' +
+              '<div class="info"><b>Model:</b> ' + data.model + '</div>' +
+              '<div class="info"><b>Kerusakan:</b> ' + data.kerusakan + '</div>' +
+              '<div class="info"><b>Estimasi:</b> Rp ' + (data.estimasi || '-') + '</div>' +
+              '<div class="info"><b>Konsumen:</b> ' + data.nama + '</div>' +
+              '<div class="info"><b>No. HP:</b> ' + data.hp + '</div>' +
+              '<div class="status-box">STATUS: MASUK</div>' +
+              '<div class="footer">Servis diterima oleh staff web<br>Fanboy Store - Premium Used Device</div></body></html>';
+
+            var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
+            blob.setContentType('application/pdf');
+            blob.setName('Servis_' + sn + '.pdf');
+
+            var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
+            var formData = {
+              'chat_id': staffGroupId,
+              'document': blob,
+              'caption': 'PDF Servis Intake - ' + sn
+            };
+            var sendOptions = {
+              'method': 'post',
+              'payload': formData,
+              'muteHttpExceptions': true
+            };
+            var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
+            var pdfResult = JSON.parse(pdfResp.getContentText());
+            if (!pdfResult.ok) tgError = 'PDF send failed: ' + (pdfResult.description || 'unknown');
+          } catch(pdfErr) {
+            tgError = 'PDF error: ' + pdfErr.toString();
+          }
+        } else {
+          tgError = 'Text send failed: ' + (result.description || JSON.stringify(result));
+        }
+      }
+    } catch(tgErr) {
+      tgError = tgErr.toString();
+    }
+
+    return {ok: true, telegramSent: tgSent, tgError: tgError};
   } catch(e) {
     return {ok: false, msg: e.toString()};
   }
@@ -437,65 +477,107 @@ function completeServis(sn, biaya, statusBayar) {
       }
     };
 
-    // Kirim PDF Servis Final Invoice ke Telegram
+    // Kirim notifikasi Telegram (text dulu, baru PDF)
     var tgSent = false;
+    var tgError = '';
     try {
       var props = PropertiesService.getScriptProperties();
       var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
       var staffGroupId = '-1003922936409';
-      if (botToken) {
+      if (!botToken) {
+        tgError = 'TELEGRAM_BOT_TOKEN not set';
+      } else {
         var d = result.data;
         var bayarLabel = statusBayar === 'CASH' ? 'Tunai' : (statusBayar === 'TRANSFER' ? 'Transfer' : 'Pending');
         var sisaTagihan = statusBayar === 'BELUM_LUNAS' ? cleanBiaya : '0';
 
-        var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
-          '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
-          '.header{background:#1a5276;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
-          '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
-          '.info{padding:12px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:140px}' +
-          '.total-box{background:#f8f9fa;padding:15px;font-size:15px;border-bottom:2px solid #1a5276}' +
-          '.total-box .row{display:flex;justify-content:space-between;margin:4px 0}' +
-          '.status-box{background:#27ae60;color:#fff;padding:12px;text-align:center;font-size:18px;font-weight:bold}' +
-          '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
-          '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
-          '<div style="margin-top:8px;font-size:14px">SERVIS FINAL INVOICE</div></div>' +
-          '<div class="info"><b>Tanggal Masuk:</b> ' + d.tglMasuk + '</div>' +
-          '<div class="info"><b>Tanggal Selesai:</b> ' + d.tglSelesai + '</div>' +
-          '<div class="info"><b>SN:</b> ' + d.sn + '</div>' +
-          '<div class="info"><b>Model:</b> ' + d.model + '</div>' +
-          '<div class="info"><b>Kerusakan:</b> ' + d.kerusakan + '</div>' +
-          '<div class="info"><b>Konsumen:</b> ' + d.nama + '</div>' +
-          '<div class="info"><b>No. HP:</b> ' + d.hp + '</div>' +
-          (d.catatan ? '<div class="info"><b>Catatan:</b> ' + d.catatan + '</div>' : '') +
-          '<div class="total-box">' +
-          '<div class="row"><span>Biaya Servis:</span><span>Rp ' + Number(cleanBiaya).toLocaleString('id-ID') + '</span></div>' +
-          '<div class="row"><span>Metode Bayar:</span><span>' + bayarLabel + '</span></div>' +
-          (sisaTagihan !== '0' ? '<div class="row"><span>Sisa Tagihan:</span><span>Rp ' + Number(sisaTagihan).toLocaleString('id-ID') + '</span></div>' : '') +
-          '</div>' +
-          '<div class="status-box">SERVIS SELESAI</div>' +
-          '<div class="footer">Terima kasih atas kepercayaan Anda<br>Fanboy Store - Premium Used Device</div></body></html>';
-
-        var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
-        blob.setContentType('application/pdf');
-        blob.setName('Servis_Invoice_' + d.sn + '.pdf');
-
-        var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
-        var formData = {
+        // 1. Kirim text message dulu
+        var msg = 'SERVIS SELESAI\n\n' +
+                  'SN: ' + d.sn + '\n' +
+                  'Model: ' + d.model + '\n' +
+                  'Kerusakan: ' + d.kerusakan + '\n' +
+                  'Konsumen: ' + d.nama + '\n' +
+                  'Biaya: Rp ' + Number(cleanBiaya).toLocaleString('id-ID') + '\n' +
+                  'Bayar: ' + bayarLabel + '\n' +
+                  (sisaTagihan !== '0' ? 'Sisa: Rp ' + Number(sisaTagihan).toLocaleString('id-ID') + '\n' : '') +
+                  'Tgl Masuk: ' + d.tglMasuk + '\n' +
+                  'Tgl Selesai: ' + d.tglSelesai;
+        var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
+        var payload = {
           'chat_id': staffGroupId,
-          'document': blob,
-          'caption': 'SERVIS SELESAI\nSN: ' + d.sn + '\nModel: ' + d.model + '\nBiaya: Rp ' + Number(cleanBiaya).toLocaleString('id-ID') + '\nBayar: ' + bayarLabel
+          'text': msg
         };
-        var sendOptions = {
+        var options = {
           'method': 'post',
-          'payload': formData,
+          'contentType': 'application/json',
+          'payload': JSON.stringify(payload),
           'muteHttpExceptions': true
         };
-        var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
-        tgSent = JSON.parse(pdfResp.getContentText()).ok === true;
+        var resp = UrlFetchApp.fetch(url, options);
+        var tgResult = JSON.parse(resp.getContentText());
+        tgSent = tgResult.ok === true;
+
+        // 2. Kirim PDF Servis Final Invoice
+        if (tgSent) {
+          try {
+            var pdfHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+              '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:30px;max-width:600px;margin:0 auto}' +
+              '.header{background:#1a5276;color:#fff;padding:20px;text-align:center;border-radius:8px 8px 0 0}' +
+              '.header h1{font-size:22px;margin:0}.header .sub{font-size:12px;opacity:.8;margin-top:4px}' +
+              '.info{padding:12px 15px;border-bottom:1px solid #eee;font-size:13px}.info b{display:inline-block;width:140px}' +
+              '.total-box{background:#f8f9fa;padding:15px;font-size:15px;border-bottom:2px solid #1a5276}' +
+              '.total-box .row{display:flex;justify-content:space-between;margin:4px 0}' +
+              '.status-box{background:#27ae60;color:#fff;padding:12px;text-align:center;font-size:18px;font-weight:bold}' +
+              '.footer{text-align:center;margin-top:15px;font-size:11px;color:#999}</style></head><body>' +
+              '<div class="header"><h1>FANBOY STORE</h1><div class="sub">Premium Used Device</div>' +
+              '<div style="margin-top:8px;font-size:14px">SERVIS FINAL INVOICE</div></div>' +
+              '<div class="info"><b>Tanggal Masuk:</b> ' + d.tglMasuk + '</div>' +
+              '<div class="info"><b>Tanggal Selesai:</b> ' + d.tglSelesai + '</div>' +
+              '<div class="info"><b>SN:</b> ' + d.sn + '</div>' +
+              '<div class="info"><b>Model:</b> ' + d.model + '</div>' +
+              '<div class="info"><b>Kerusakan:</b> ' + d.kerusakan + '</div>' +
+              '<div class="info"><b>Konsumen:</b> ' + d.nama + '</div>' +
+              '<div class="info"><b>No. HP:</b> ' + d.hp + '</div>' +
+              (d.catatan ? '<div class="info"><b>Catatan:</b> ' + d.catatan + '</div>' : '') +
+              '<div class="total-box">' +
+              '<div class="row"><span>Biaya Servis:</span><span>Rp ' + Number(cleanBiaya).toLocaleString('id-ID') + '</span></div>' +
+              '<div class="row"><span>Metode Bayar:</span><span>' + bayarLabel + '</span></div>' +
+              (sisaTagihan !== '0' ? '<div class="row"><span>Sisa Tagihan:</span><span>Rp ' + Number(sisaTagihan).toLocaleString('id-ID') + '</span></div>' : '') +
+              '</div>' +
+              '<div class="status-box">SERVIS SELESAI</div>' +
+              '<div class="footer">Terima kasih atas kepercayaan Anda<br>Fanboy Store - Premium Used Device</div></body></html>';
+
+            var blob = HtmlService.createHtmlOutput(pdfHtml).getBlob();
+            blob.setContentType('application/pdf');
+            blob.setName('Servis_Invoice_' + d.sn + '.pdf');
+
+            var sendUrl = 'https://api.telegram.org/bot' + botToken + '/sendDocument';
+            var formData = {
+              'chat_id': staffGroupId,
+              'document': blob,
+              'caption': 'PDF Servis Invoice - ' + d.sn
+            };
+            var sendOptions = {
+              'method': 'post',
+              'payload': formData,
+              'muteHttpExceptions': true
+            };
+            var pdfResp = UrlFetchApp.fetch(sendUrl, sendOptions);
+            var pdfResult = JSON.parse(pdfResp.getContentText());
+            if (!pdfResult.ok) tgError = 'PDF send failed: ' + (pdfResult.description || 'unknown');
+          } catch(pdfErr) {
+            tgError = 'PDF error: ' + pdfErr.toString();
+          }
+        } else {
+          tgError = 'Text send failed: ' + (tgResult.description || JSON.stringify(tgResult));
+        }
       }
-    } catch(tgErr) { tgSent = false; }
+    } catch(tgErr) {
+      tgError = tgErr.toString();
+    }
 
     result.telegramSent = tgSent;
+    result.tgError = tgError;
     return result;
   } catch(e) {
     return {ok: false, msg: e.toString()};
