@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fanboy Stock Manager</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,sans-serif;background:#f5f5f7;color:#1d1d1f}
+    .hdr{background:#007AFF;color:#fff;padding:20px;text-align:center;position:sticky;top:0;z-index:100}
+    .hdr h1{font-size:20px;font-weight:600}
+    .hdr .sub{font-size:12px;opacity:.8;margin-top:4px}
+    .bk{color:#fff;font-size:14px;padding:8px 16px;background:rgba(255,255,255,.2);border-radius:20px;cursor:pointer;border:none}
+    .bk:active{background:rgba(255,255,255,.35)}
+    .w{max-width:600px;margin:0 auto;padding:16px}
+    .ld{text-align:center;padding:40px;color:#999}
+    .em{text-align:center;padding:40px;color:#999;font-size:16px}
+    .sr{width:100%;padding:14px 18px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;margin-bottom:16px;background:#fff}
+    .sr:focus{outline:none;border-color:#007AFF}
+    .mi{font-size:12px;color:#666;margin-top:6px}
+    .cd{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}
+    .lh{display:flex;justify-content:space-between;align-items:center}
+    .ln{font-size:22px;font-weight:700}
+    .lt{font-size:13px;color:#666;margin-top:4px}
+    .gr{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+    .bx{padding:12px;border-radius:12px;text-align:center;cursor:pointer}
+    .bg{background:#E8F5E9}
+    .bo{background:#FFF3E0}
+    .br{background:#FFEBEE}
+    .bb{background:#E3F2FD}
+    .nm{font-size:24px;font-weight:700}
+    .ng{color:#2E7D32}
+    .no{color:#E65100}
+    .nr{color:#C62828}
+    .nb{color:#1565C0}
+    .lb{font-size:11px;color:#666;margin-top:4px;text-transform:uppercase}
+    .it{background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer}
+    .it-sold{background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;border-left:4px solid #C62828}
+    .mn{font-size:16px;font-weight:600}
+    .ms{font-size:13px;color:#666;margin-top:4px}
+    .mp{font-size:18px;font-weight:700;color:#007AFF;margin-top:8px}
+    .tg{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .t{font-size:11px;padding:4px 8px;border-radius:6px;background:#f5f5f7;color:#666}
+    .dt{background:#fff;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .dtt{font-size:24px;font-weight:700;margin-bottom:4px}
+    .dts{font-size:15px;color:#666;margin-bottom:16px}
+    .dg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+    .dl{font-size:12px;color:#999;text-transform:uppercase}
+    .dv{font-size:16px;font-weight:600;margin-top:4px}
+    .tb{background:#1d1d1f;color:#fff;padding:16px 20px;border-radius:12px;margin-top:16px;display:flex;justify-content:space-between}
+    .ar{font-size:20px;color:#007AFF}
+    .fw{font-weight:700}
+    .pr{margin-top:20px;font-size:28px;font-weight:700;color:#007AFF}
+    .st-available{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#E8F5E9;color:#2E7D32}
+    .st-sold{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#FFEBEE;color:#C62828}
+    .st-problem{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#FFEBEE;color:#C62828}
+    .st-returned{display:inline-block;padding:6px 16px;border-radius:20px;font-size:14px;font-weight:600;background:#E3F2FD;color:#1565C0}
+    .nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+    .nav-card{display:block;text-decoration:none;text-align:center;padding:20px;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}
+    .nav-card:active{opacity:.7}
+    .nav-icon{font-size:28px}
+    .nav-label{font-weight:700;margin-top:8px}
+    .servis-tabs{display:flex;gap:8px;margin-bottom:16px}
+    .servis-tab{flex:1;padding:12px;border:2px solid #e5e5ea;border-radius:12px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;text-align:center}
+    .servis-tab.active{border-color:#007AFF;background:#007AFF;color:#fff}
+    .servis-card{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .sbtn{padding:8px 16px;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+    .sbtn:active{opacity:.7}
+    .servis-badge{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600}
+    .servis-textarea{width:100%;padding:14px 18px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;resize:vertical}
+    .btn-refresh{padding:12px 24px;border:none;background:#007AFF;color:#fff;border-radius:8px;font-size:16px;cursor:pointer}
+    .form-group{margin-bottom:16px}
+    label{display:block;font-size:13px;color:#666;margin-bottom:6px;font-weight:600;text-transform:uppercase}
+    input[type=text],input[type=number],select{width:100%;padding:14px;border:1px solid #e5e5ea;border-radius:12px;font-size:16px;background:#fff}
+    input:focus,select:focus{outline:none;border-color:#007AFF}
+    .btn{width:100%;padding:16px;background:#007AFF;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-top:8px}
+    .btn:active{background:#0056CC}
+    .btn:disabled{background:#ccc;cursor:not-allowed}
+    .msg-success{background:#E8F5E9;color:#2E7D32;padding:16px;border-radius:12px;margin-top:16px;display:none}
+    .msg-error{background:#FFEBEE;color:#C62828;padding:16px;border-radius:12px;margin-top:16px;display:none}
+    .msg-info{background:#E3F2FD;color:#1565C0;padding:12px;border-radius:10px;font-size:14px;margin-bottom:16px}
+    .item-info{background:#f5f5f7;padding:12px;border-radius:10px;margin-top:8px;font-size:14px;display:none}
+    .total-box{background:#1d1d1f;color:#fff;padding:16px;border-radius:12px;margin-top:16px;display:none}
+    .autocomplete-wrap{position:relative}
+    .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e5e5ea;border-radius:0 0 12px 12px;max-height:200px;overflow-y:auto;z-index:100;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    .autocomplete-item{padding:12px 14px;cursor:pointer;font-size:15px;border-bottom:1px solid #f5f5f7}
+    .autocomplete-item:hover,.autocomplete-item.active{background:#E3F2FD}
+    .autocomplete-item:last-child{border-bottom:none}
+  </style>
+</head>
+<body>
+  <div id="app"><div class="ld">Loading...</div></div>
+
+  <script>
+(function(){
+  // ====== MODEL LIST ======
+  var MODELS=["MacBook Pro M1 Pro 14in","MacBook Pro M2 Pro 14in","MacBook Pro M3 Pro 14in","MacBook Pro M4 Pro 14in","MacBook Pro M5 Pro 14in","MacBook Pro M1 13in","MacBook Pro M2 13in","MacBook Pro M3 14in","MacBook Pro M4 14in","MacBook Pro M5 14in","MacBook Pro M1 Pro 16in","MacBook Pro M2 Pro 16in","MacBook Pro M3 Pro 16in","MacBook Pro M4 Pro 16in","MacBook Pro M5 Pro 16in","MacBook Pro M1 MAX 14in","MacBook Pro M2 MAX 14in","MacBook Pro M3 MAX 14in","MacBook Pro M4 MAX 14in","MacBook Pro M5 MAX 14in","MacBook Pro M1 MAX 16in","MacBook Pro M2 MAX 16in","MacBook Pro M3 MAX 16in","MacBook Pro M4 MAX 16in","MacBook Pro M5 MAX 16in","MacBook Pro 2012 13in","MacBook Pro 2013 13in","MacBook Pro 2014 13in","MacBook Pro 2015 13in","MacBook Pro 2016 13in","MacBook Pro 2017 13in","MacBook Pro 2018 13in","MacBook Pro 2019 13in","MacBook Pro 2020 13in","MacBook Pro 2015 15in","MacBook Pro 2016 15in","MacBook Pro 2017 15in","MacBook Pro 2018 15in","MacBook Pro 2019 15in","MacBook Pro 2019 16in","MacBook Air 2012 13in","MacBook Air 2013 13in","MacBook Air 2014 13in","MacBook Air 2015 13in","MacBook Air 2017 13in","MacBook Air 2018 13in","MacBook Air 2019 13in","MacBook Air 2020 13in","MacBook Air M1 13in","MacBook Air M2 13in","MacBook Air M3 13in","MacBook Air M4 13in","MacBook Air M2 15in","MacBook Air M3 15in","MacBook Air M4 15in","MacBook Pro 2012 11in","MacBook Pro 2013 11in","MacBook Pro 2014 11in","MacBook Pro 2015 11in"];
+
+  // ====== HELPERS ======
+  function fmt(n){if(!n)return"0";var s=String(n),r="",c=0;for(var i=s.length-1;i>=0;i--){r=s[i]+r;c++;if(c%3===0&&i>0)r="."+r}return r}
+  function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}
+  function stCls(s){s=s.toLowerCase();if(s==="sold")return"st-sold";if(s==="problem")return"st-problem";if(s==="returned")return"st-returned";return"st-available"}
+  function stLbl(s){s=s.toLowerCase();if(s==="sold")return"SOLD";if(s==="problem")return"PROBLEM";if(s==="returned")return"RETURN";return"AVAILABLE"}
+
+  function $(id){return document.getElementById(id)}
+  function app(){return $("app")}
+
+  // ====== ERROR-SAFE WRAPPER ======
+  function safeRun(fn, fallback){
+    try{ fn() }catch(e){
+      if(fallback) fallback(e);
+      else app().innerHTML='<div class="em">Error: '+esc(e.message)+'<br><br><button class="btn-refresh" onclick="location.reload()">Refresh</button></div>';
+    }
+  }
+
+  // ====== TIMEOUT HELPER ======
+  var _loadTimer=null;
+  function startTimer(seconds){
+    clearTimer();
+    _loadTimer=setTimeout(function(){
+      var el=app();
+      if(el && el.querySelector('.ld')){
+        el.innerHTML='<div class="em">Server lambat. <button class="btn-refresh" onclick="location.reload()">Refresh</button></div>';
+      }
+    }, seconds*1000);
+  }
+  function clearTimer(){if(_loadTimer){clearTimeout(_loadTimer);_loadTimer=null}}
+
+  // ====== GO HOME ======
+  function goHome(){
+    app().innerHTML='<div class="ld">Loading...</div>';
+    startTimer(20);
+    google.script.run
+      .withSuccessHandler(function(c){ clearTimer(); showHome(c); })
+      .withFailureHandler(function(e){
+        clearTimer();
+        app().innerHTML='<div class="em">Gagal memuat: '+esc(e.message)+'<br><br><button class="btn-refresh" onclick="location.reload()">Refresh</button></div>';
+      })
+      .getCounts();
+  }
+
+  function showHome(c){
+    var s='';
+    s+='<div class="hdr"><h1>Fanboy Stock Manager</h1><div class="sub">Dashboard</div></div>';
+    s+='<div class="w" style="padding-top:16px">';
+    s+='<div class="nav-grid">';
+    s+='<div class="nav-card" style="background:#E8F5E9" data-act="page" data-page="input"><div class="nav-icon">&#128230;</div><div class="nav-label">INPUT STOK</div></div>';
+    s+='<div class="nav-card" style="background:#FFF3E0" data-act="page" data-page="transfer"><div class="nav-icon">&#128260;</div><div class="nav-label">PINDAH STOK</div></div>';
+    s+='<div class="nav-card" style="background:#E3F2FD" data-act="page" data-page="invoice"><div class="nav-icon">&#127915;</div><div class="nav-label">BUAT INVOICE</div></div>';
+    s+='<div class="nav-card" style="background:#FFF8E1" data-act="page" data-page="servis"><div class="nav-icon">&#128295;</div><div class="nav-label">SERVIS</div></div>';
+    s+='</div>';
+    s+='<input type="text" class="sr" placeholder="Cari semua barang..." data-act="gsearch">';
+    s+='<div id="gresults"></div>';
+    var locs=["JOGJA","SOLO","BALI"];
+    for(var i=0;i<locs.length;i++){
+      var l=locs[i],x=c[l]||{},t=(x.Available||0)+(x.Sold||0)+(x.problem||0)+(x.Returned||0);
+      s+='<div class="cd" data-act="detail" data-loc="'+l+'" data-st="Available">';
+      s+='<div class="lh"><div><div class="ln">'+l+'</div><div class="lt">'+t+' unit total</div></div>';
+      s+='<div class="ar">&#10132;</div></div>';
+      s+='<div class="gr">';
+      s+='<div class="bx bg" data-act="detail" data-loc="'+l+'" data-st="Available"><div class="nm ng">'+(x.Available||0)+'</div><div class="lb">Available</div></div>';
+      s+='<div class="bx bo" data-act="detail" data-loc="'+l+'" data-st="Sold"><div class="nm no">'+(x.Sold||0)+'</div><div class="lb">Sold</div></div>';
+      s+='<div class="bx br" data-act="detail" data-loc="'+l+'" data-st="problem"><div class="nm nr">'+(x.problem||0)+'</div><div class="lb">Problem</div></div>';
+      s+='<div class="bx bb" data-act="detail" data-loc="'+l+'" data-st="Returned"><div class="nm nb">'+(x.Returned||0)+'</div><div class="lb">Return</div></div>';
+      s+='</div></div>';
+    }
+    s+='</div>';
+    app().innerHTML=s;
+  }
+
+  // ====== DETAIL ======
+  function goDetail(loc,st){
+    app().innerHTML='<div class="ld">Loading...</div>';
+    startTimer(20);
+    google.script.run
+      .withSuccessHandler(function(items){ clearTimer(); showDetail(loc,st,items); })
+      .withFailureHandler(function(e){ clearTimer(); app().innerHTML='<div class="em">Error: '+esc(e.message)+'</div>'; })
+      .getItems(loc,st);
+  }
+
+  function showDetail(loc,st,items){
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Kembali</button>';
+    s+='<h1>'+esc(loc)+' - '+esc(st)+'</h1><div class="sub">'+items.length+' unit</div></div>';
+    s+='<div class="w">';
+    s+='<input type="text" class="sr" placeholder="Cari model atau SN..." data-act="search">';
+    if(!items.length)s+='<div class="em">Tidak ada item</div>';
+    var total=0; window._sdata=[]; s+='<div id="list">';
+    for(var i=0;i<items.length;i++){
+      var it=items[i]; total+=it.harga;
+      window._sdata.push((it.model+" "+it.sn+" "+it.spec+" "+it.kondisi).toLowerCase());
+      var ic=st==="Sold"?"it-sold":"it";
+      s+='<div class="'+ic+'" data-act="item" data-sn="'+esc(it.sn)+'">';
+      s+='<div class="mn">'+esc(it.model)+'</div>';
+      s+='<div class="ms">'+esc(it.spec)+'</div>';
+      s+='<div class="mp">Rp '+fmt(it.harga)+'</div>';
+      s+='<div class="tg"><span class="t">SN: '+esc(it.sn)+'</span><span class="t">Grade: '+esc(it.kondisi)+'</span>';
+      if(it.supplier)s+='<span class="t">'+esc(it.supplier)+'</span>';
+      s+='</div></div>';
+    }
+    s+='</div>';
+    if(st==="Available"&&items.length>0)s+='<div class="tb"><div>Total Nilai Stok</div><div class="fw">Rp '+fmt(total)+'</div></div>';
+    app().innerHTML=s;
+  }
+
+  // ====== ITEM DETAIL ======
+  function goItem(sn){
+    app().innerHTML='<div class="ld">Loading...</div>';
+    startTimer(20);
+    google.script.run
+      .withSuccessHandler(function(it){ clearTimer(); showItem(it); })
+      .withFailureHandler(function(e){ clearTimer(); app().innerHTML='<div class="em">Error: '+esc(e.message)+'</div>'; })
+      .getItem(sn);
+  }
+
+  function showItem(it){
+    if(!it){app().innerHTML='<div class="em">Item tidak ditemukan</div>';return}
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Back</button>';
+    s+='<h1>Detail Unit</h1></div>';
+    s+='<div class="w"><div class="dt">';
+    s+='<div class="dtt">'+esc(it.model)+'</div>';
+    s+='<div class="dts">'+esc(it.spec)+'</div>';
+    s+='<span class="'+stCls(it.status)+'">'+stLbl(it.status)+'</span>';
+    s+='<div class="pr">Rp '+fmt(it.harga)+'</div>';
+    s+='<div class="dg">';
+    s+='<div><div class="dl">Serial Number</div><div class="dv">'+esc(it.sn)+'</div></div>';
+    s+='<div><div class="dl">Kondisi</div><div class="dv">'+esc(it.kondisi)+'</div></div>';
+    s+='<div><div class="dl">Lokasi</div><div class="dv">'+esc(it.lokasi)+'</div></div>';
+    s+='<div><div class="dl">Supplier</div><div class="dv">'+esc(it.supplier||"-")+'</div></div>';
+    s+='<div><div class="dl">Tanggal Masuk</div><div class="dv">'+esc(it.tgl||"-")+'</div></div>';
+    s+='</div></div></div>';
+    app().innerHTML=s;
+  }
+
+  // ====== SEARCH ======
+  var _searchTimer=null;
+  function goSearch(q){
+    if(!q){$("gresults").innerHTML="";return}
+    $("gresults").innerHTML='<div class="ld">Searching...</div>';
+    google.script.run
+      .withSuccessHandler(showSearchResults)
+      .withFailureHandler(function(){$("gresults").innerHTML='<div class="em">Gagal mencari</div>';})
+      .searchAll(q);
+  }
+
+  function showSearchResults(items){
+    if(!items.length){$("gresults").innerHTML='<div class="em">Tidak ditemukan</div>';return}
+    var s='';
+    for(var i=0;i<items.length;i++){
+      var it=items[i];
+      s+='<div class="it" data-act="item" data-sn="'+esc(it.sn)+'">';
+      s+='<div class="mn">'+esc(it.model)+'</div>';
+      s+='<div class="ms">'+esc(it.spec)+'</div>';
+      s+='<div class="mp">Rp '+fmt(it.harga)+'</div>';
+      s+='<div class="tg"><span class="'+stCls(it.status)+'">'+stLbl(it.status)+'</span>';
+      s+='<span class="t">'+esc(it.lokasi)+'</span>';
+      s+='<span class="t">SN: '+esc(it.sn)+'</span></div>';
+      if(it.history)s+='<div class="mi">History: '+esc(it.history)+'</div>';
+      if(it.tgl)s+='<div class="mi">Masuk: '+esc(it.tgl)+'</div>';
+      s+='</div>';
+    }
+    $("gresults").innerHTML=s;
+  }
+
+  // ====== NAVIGATION ======
+  function goPage(page){
+    if(page==="input")renderInputPage();
+    else if(page==="transfer")renderTransferPage();
+    else if(page==="invoice")renderInvoicePage();
+    else if(page==="servis")renderServisPage();
+    else goHome();
+  }
+
+  // ====== CLICK DELEGATE ======
+  document.addEventListener("click",function(e){
+    var el=e.target;
+    var act=el.getAttribute("data-act");
+    if(!act){var p=el.closest("[data-act]");act=p?p.getAttribute("data-act"):null;el=p}
+    if(!act)return;
+    if(act==="home")goHome();
+    else if(act==="detail")goDetail(el.getAttribute("data-loc"),el.getAttribute("data-st"));
+    else if(act==="item")goItem(el.getAttribute("data-sn"));
+    else if(act==="page")goPage(el.getAttribute("data-page"));
+    else if(act==="sstab"){
+      var tabs=document.querySelectorAll(".servis-tab");
+      for(var i=0;i<tabs.length;i++)tabs[i].className="servis-tab";
+      el.className="servis-tab active";
+      var tab=el.getAttribute("data-stab");
+      if(tab==="input")renderServisInput();
+      else if(tab==="list")loadServisList();
+    }
+    else if(act==="supdate"){
+      var sn=el.getAttribute("data-sn"),st=el.getAttribute("data-st");
+      el.disabled=true;el.textContent="Updating...";
+      google.script.run.withSuccessHandler(function(r){
+        if(r.ok)loadServisList();
+        else{alert(r.msg);el.disabled=false;}
+      }).updateServisEntry(sn,"STATUS",st);
+    }
+    else if(act==="saddnote"){
+      var sn2=el.getAttribute("data-sn");
+      var note=prompt("Tambah catatan teknisi:");
+      if(!note)return;
+      google.script.run.withSuccessHandler(function(r){
+        if(r.ok)loadServisList();
+        else alert(r.msg);
+      }).updateServisEntry(sn2,"NOTE",note);
+    }
+    else if(act==="sdiambil"){
+      var sn3=el.getAttribute("data-sn");
+      var md3=el.getAttribute("data-model");
+      var est3=el.getAttribute("data-est");
+      var biaya=prompt("Biaya aktual servis (Rp):",est3);
+      if(biaya===null)return;
+      var bayar=confirm("Bayar LUNAS?\n\nOK = LUNAS\nCancel = BELUM")?"LUNAS":"BELUM";
+      el.disabled=true;el.textContent="Processing...";
+      google.script.run.withSuccessHandler(function(r){
+        if(r.ok){showServisInvoice(r.data);loadServisList()}
+        else{alert(r.msg);el.disabled=false;}
+      }).completeServis(sn3,biaya,bayar);
+    }
+  });
+
+  // ====== INPUT DELEGATE ======
+  document.addEventListener("input",function(e){
+    var act=e.target.getAttribute("data-act");
+    if(act==="gsearch"){
+      clearTimeout(_searchTimer);
+      var q=e.target.value;
+      _searchTimer=setTimeout(function(){goSearch(q)},400);
+      return;
+    }
+    if(act==="search"){
+      var q2=e.target.value.toLowerCase();
+      var items=document.querySelectorAll("#list .it,#list .it-sold");
+      var sdata=window._sdata||[];
+      for(var i=0;i<items.length;i++){
+        var m=q2===""||sdata[i].indexOf(q2)>-1;
+        items[i].style.display=m?"":"none";
+      }
+    }
+  });
+
+  // ====== INPUT STOCK PAGE ======
+  function renderInputPage(){
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Menu</button><h1>Input Stock</h1><div class="sub">Tambah unit baru ke inventory</div></div>';
+    s+='<div class="w">';
+    s+='<form id="stockForm">';
+    s+='<div class="form-group"><label>Serial Number</label><input type="text" id="sn" required placeholder="Masukkan SN"></div>';
+    s+='<div class="form-group"><label>Model</label><div class="autocomplete-wrap"><input type="text" id="model" required placeholder="Ketik untuk cari model..." autocomplete="off"><div class="autocomplete-list" id="modelList"></div></div></div>';
+    s+='<div class="form-group"><label>Spesifikasi</label><input type="text" id="spec" placeholder="Contoh: M3 Pro 18/512"></div>';
+    s+='<div class="form-group"><label>Kondisi</label><input type="text" id="kondisi" required placeholder="Contoh: A, B, C"></div>';
+    s+='<div class="form-group"><label>Harga Beli</label><input type="number" id="hargaBeli" required placeholder="Contoh: 15000000"></div>';
+    s+='<div class="form-group"><label>Biaya Servis</label><input type="number" id="biayaServis" value="0" placeholder="0"></div>';
+    s+='<div class="form-group"><label>Harga Jual</label><input type="number" id="hargaJual" required placeholder="Contoh: 18000000"></div>';
+    s+='<div class="form-group"><label>Supplier</label><input type="text" id="supplier" placeholder="Nama supplier"></div>';
+    s+='<div class="form-group"><label>Lokasi</label><select id="lokasi"><option value="JOGJA">JOGJA</option><option value="SOLO">SOLO</option><option value="BALI">BALI</option></select></div>';
+    s+='<div class="form-group"><label>Staff</label><input type="text" id="staff" placeholder="Nama staff input"></div>';
+    s+='<button type="submit" class="btn" id="submitBtn">SIMPAN</button>';
+    s+='</form>';
+    s+='<div id="result"></div>';
+    s+='</div>';
+    app().innerHTML=s;
+    setupInputForm();
+  }
+
+  function setupInputForm(){
+    var form=$("stockForm");
+    if(!form)return;
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var btn=$("submitBtn");btn.disabled=true;btn.textContent="Menyimpan...";
+      var data={
+        sn:$("sn").value.trim(), model:$("model").value.trim(),
+        spec:$("spec").value.trim(), kondisi:$("kondisi").value,
+        hargaBeli:$("hargaBeli").value, biayaServis:$("biayaServis").value||"0",
+        hargaJual:$("hargaJual").value, supplier:$("supplier").value.trim(),
+        lokasi:$("lokasi").value, staff:$("staff").value.trim()
+      };
+      google.script.run
+        .withSuccessHandler(function(r){
+          btn.disabled=false;btn.textContent="SIMPAN";
+          var el=$("result");
+          if(r.ok){el.className="msg-success";el.style.display="block";el.textContent="\u2705 Berhasil! SN "+data.sn+" ditambahkan ke "+data.lokasi;$("stockForm").reset();}
+          else{el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg;}
+        })
+        .withFailureHandler(function(e){
+          btn.disabled=false;btn.textContent="SIMPAN";
+          var el=$("result");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message;
+        })
+        .addStock(data);
+    });
+    setupAutocomplete($("model"),$("modelList"));
+  }
+
+  function setupAutocomplete(input,list){
+    if(!input||!list)return;
+    var activeIdx=-1;
+    input.addEventListener("input",function(){
+      var q=this.value.toLowerCase().trim();
+      list.innerHTML="";activeIdx=-1;
+      if(!q){list.style.display="none";return}
+      var matches=MODELS.filter(function(m){return m.toLowerCase().indexOf(q)>-1}).slice(0,10);
+      if(!matches.length){list.style.display="none";return}
+      matches.forEach(function(m){
+        var d=document.createElement("div");d.className="autocomplete-item";d.textContent=m;
+        d.addEventListener("click",function(){input.value=m;list.style.display="none"});
+        list.appendChild(d);
+      });
+      list.style.display="block";
+    });
+    input.addEventListener("keydown",function(e){
+      var items=list.querySelectorAll(".autocomplete-item");
+      if(e.key==="ArrowDown"){e.preventDefault();activeIdx=Math.min(activeIdx+1,items.length-1);items.forEach(function(it,i){it.className=i===activeIdx?"autocomplete-item active":"autocomplete-item"})}
+      else if(e.key==="ArrowUp"){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);items.forEach(function(it,i){it.className=i===activeIdx?"autocomplete-item active":"autocomplete-item"})}
+      else if(e.key==="Enter"&&activeIdx>=0&&items[activeIdx]){e.preventDefault();input.value=items[activeIdx].textContent;list.style.display="none"}
+    });
+    document.addEventListener("click",function(e){if(!e.target.closest(".autocomplete-wrap"))list.style.display="none"});
+  }
+
+  // ====== TRANSFER PAGE ======
+  function renderTransferPage(){
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Menu</button><h1>Pindah Stock</h1><div class="sub">Transfer unit antar lokasi</div></div>';
+    s+='<div class="w">';
+    s+='<form id="transferForm">';
+    s+='<div class="form-group"><label>Serial Number</label><input type="text" id="sn" required placeholder="Masukkan SN"></div>';
+    s+='<div id="itemInfo" class="item-info"></div>';
+    s+='<div class="form-group"><label>Lokasi Tujuan</label><select id="newLoc"><option value="JOGJA">JOGJA</option><option value="SOLO">SOLO</option><option value="BALI">BALI</option></select></div>';
+    s+='<div class="form-group"><label>Alasan Pindah</label><input type="text" id="reason" placeholder="Contoh: Request toko Bali"></div>';
+    s+='<button type="submit" class="btn" id="submitBtn">PINDAHKAN</button>';
+    s+='</form>';
+    s+='<div id="result"></div>';
+    s+='</div>';
+    app().innerHTML=s;
+    setupTransferForm();
+  }
+
+  function setupTransferForm(){
+    var form=$("transferForm");if(!form)return;
+    var _timer=null;
+    $("sn").addEventListener("input",function(){
+      clearTimeout(_timer);var sn=this.value;
+      if(!sn){$("itemInfo").style.display="none";return}
+      _timer=setTimeout(function(){
+        google.script.run.withSuccessHandler(function(r){
+          var el=$("itemInfo");
+          if(r){el.style.display="block";el.style.background="#f5f5f7";el.style.color="#333";el.innerHTML="<b>"+esc(r.model)+"</b> | "+esc(r.spec)+"<br>Lokasi: <b>"+esc(r.lokasi)+"</b> | Status: "+esc(r.status)+" | Harga: Rp "+fmt(r.harga)}
+          else{el.style.display="block";el.style.background="#FFEBEE";el.style.color="#C62828";el.innerHTML="SN tidak ditemukan"}
+        }).getItem(sn);
+      },500);
+    });
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var btn=$("submitBtn");btn.disabled=true;btn.textContent="Memproses...";
+      var data={sn:$("sn").value.trim(),newLoc:$("newLoc").value,reason:$("reason").value.trim()};
+      google.script.run
+        .withSuccessHandler(function(r){
+          btn.disabled=false;btn.textContent="PINDAHKAN";
+          var el=$("result");
+          if(r.ok){el.className="msg-success";el.style.display="block";el.textContent="\u2705 SN "+data.sn+" dipindah ke "+data.newLoc+" (dari "+r.oldLoc+")";$("transferForm").reset();$("itemInfo").style.display="none"}
+          else{el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg}
+        })
+        .withFailureHandler(function(e){btn.disabled=false;btn.textContent="PINDAHKAN";var el=$("result");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message})
+        .transferStock(data);
+    });
+  }
+
+  // ====== INVOICE PAGE ======
+  function renderInvoicePage(){
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Menu</button><h1>Buat Invoice</h1><div class="sub">Catat penjualan & generate invoice</div></div>';
+    s+='<div class="w">';
+    s+='<form id="invoiceForm">';
+    s+='<div class="form-group"><label>Serial Number</label><input type="text" id="sn" required placeholder="Masukkan SN"></div>';
+    s+='<div id="itemInfo" class="item-info"></div>';
+    s+='<div class="form-group"><label>Nama Pembeli</label><input type="text" id="buyer" required placeholder="Nama lengkap pembeli"></div>';
+    s+='<div class="form-group"><label>Harga Jual (Final)</label><input type="number" id="hargaFinal" required placeholder="Harga deal dengan pembeli"></div>';
+    s+='<div class="form-group"><label>Metode Bayar</label><select id="payment"><option value="Cash">Cash</option><option value="Transfer">Transfer</option><option value="Kredit">Kredit</option><option value="COD">COD</option></select></div>';
+    s+='<div class="form-group"><label>Sales</label><input type="text" id="sales" required placeholder="Nama sales"></div>';
+    s+='<div class="form-group"><label>Handler</label><input type="text" id="handler" placeholder="Nama handler (opsional)"></div>';
+    s+='<button type="submit" class="btn" id="submitBtn">BUAT INVOICE</button>';
+    s+='</form>';
+    s+='<div id="result"></div>';
+    s+='</div>';
+    app().innerHTML=s;
+    setupInvoiceForm();
+  }
+
+  function setupInvoiceForm(){
+    var form=$("invoiceForm");if(!form)return;
+    var _timer=null;
+    $("sn").addEventListener("input",function(){
+      clearTimeout(_timer);var sn=this.value;
+      if(!sn){$("itemInfo").style.display="none";return}
+      _timer=setTimeout(function(){
+        google.script.run.withSuccessHandler(function(r){
+          var el=$("itemInfo");
+          if(r){el.style.display="block";el.style.background="#f5f5f7";el.style.color="#333";
+            el.innerHTML="<b>"+esc(r.model)+"</b> | "+esc(r.spec)+"<br>Harga Modal: Rp "+fmt(r.modal)+" | Harga Jual: Rp "+fmt(r.harga)+"<br>Status: <b>"+esc(r.status)+"</b> | Lokasi: "+esc(r.lokasi);
+            $("hargaFinal").value=r.harga}
+          else{el.style.display="block";el.style.background="#FFEBEE";el.style.color="#C62828";el.innerHTML="SN tidak ditemukan atau bukan Available"}
+        }).getItem(sn);
+      },500);
+    });
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var btn=$("submitBtn");btn.disabled=true;btn.textContent="Memproses...";
+      var data={sn:$("sn").value.trim(),buyer:$("buyer").value.trim(),hargaFinal:$("hargaFinal").value,payment:$("payment").value,sales:$("sales").value.trim(),handler:$("handler").value.trim()};
+      google.script.run
+        .withSuccessHandler(function(r){
+          btn.disabled=false;btn.textContent="BUAT INVOICE";
+          var el=$("result");
+          if(r.ok){el.className="msg-success";el.style.display="block";el.innerHTML="\u2705 Invoice "+r.invoiceNo+" dibuat!<br>Buyer: "+data.buyer+"<br>Total: Rp "+fmt(data.hargaFinal)+"<br><br>PDF sudah dikirim ke grup Invoice";}
+          else{el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg}
+        })
+        .withFailureHandler(function(e){btn.disabled=false;btn.textContent="BUAT INVOICE";var el=$("result");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message})
+        .createInvoice(data);
+    });
+  }
+
+  // ====== SERVIS PAGE ======
+  function renderServisPage(){
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Menu</button><h1>Servis</h1><div class="sub">Input & monitor servis</div></div>';
+    s+='<div class="w">';
+    s+='<div class="servis-tabs">';
+    s+='<button class="servis-tab active" data-act="sstab" data-stab="input">INPUT BARU</button>';
+    s+='<button class="servis-tab" data-act="sstab" data-stab="list">DAFTAR SERVIS</button>';
+    s+='</div>';
+    s+='<div id="servisContent"></div>';
+    s+='</div>';
+    app().innerHTML=s;
+    renderServisInput();
+  }
+
+  function renderServisInput(){
+    var s='';
+    s+='<form id="servisForm">';
+    s+='<div class="form-group"><label>Lokasi</label><select id="sLokasi"><option value="JOGJA">JOGJA</option><option value="SOLO">SOLO</option><option value="BALI">BALI</option></select></div>';
+    s+='<div class="form-group"><label>SN / Nomor Unit</label><input type="text" id="sSn" required placeholder="Masukkan SN atau nomor unit"></div>';
+    s+='<div class="form-group"><label>Model</label><div class="autocomplete-wrap"><input type="text" id="sModel" required placeholder="Ketik model..." autocomplete="off"><div class="autocomplete-list" id="sModelList"></div></div></div>';
+    s+='<div class="form-group"><label>Kerusakan</label><textarea id="sKerusakan" required placeholder="Deskripsikan kerusakan..." rows="3" class="servis-textarea"></textarea></div>';
+    s+='<div class="form-group"><label>Estimasi Biaya (Rp)</label><input type="number" id="sEstimasi" placeholder="Contoh: 500000"></div>';
+    s+='<div class="form-group"><label>Nama Konsumen</label><input type="text" id="sNama" required placeholder="Nama lengkap"></div>';
+    s+='<div class="form-group"><label>No. HP Konsumen</label><input type="text" id="sHp" required placeholder="08xxxxxxxxxx"></div>';
+    s+='<button type="submit" class="btn" id="servisBtn">SIMPAN SERVIS</button>';
+    s+='</form>';
+    s+='<div id="servisResult"></div>';
+    $("servisContent").innerHTML=s;
+    setupServisForm();
+  }
+
+  function setupServisForm(){
+    var form=$("servisForm");if(!form)return;
+    setupAutocomplete($("sModel"),$("sModelList"));
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var btn=$("servisBtn");btn.disabled=true;btn.textContent="Menyimpan...";
+      var data={
+        lokasi:$("sLokasi").value, sn:$("sSn").value.trim(),
+        model:$("sModel").value.trim(), kerusakan:$("sKerusakan").value.trim(),
+        estimasi:$("sEstimasi").value||"-", nama:$("sNama").value.trim(), hp:$("sHp").value.trim()
+      };
+      google.script.run
+        .withSuccessHandler(function(r){
+          btn.disabled=false;btn.textContent="SIMPAN SERVIS";
+          var el=$("servisResult");
+          if(r.ok){el.className="msg-success";el.style.display="block";el.innerHTML="\u2705 Servis SN "+data.sn+" berhasil dicatat!<br>Status: MASUK";$("servisForm").reset();}
+          else{el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg}
+        })
+        .withFailureHandler(function(e){btn.disabled=false;btn.textContent="SIMPAN SERVIS";var el=$("servisResult");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message})
+        .addServis(data);
+    });
+  }
+
+  function loadServisList(){
+    $("servisContent").innerHTML='<div class="ld">Loading...</div>';
+    google.script.run
+      .withSuccessHandler(showServisList)
+      .withFailureHandler(function(){$("servisContent").innerHTML='<div class="em">Gagal memuat data servis</div>';})
+      .getServisItems();
+  }
+
+  function showServisList(items){
+    if(!items.length){$("servisContent").innerHTML='<div class="em">Tidak ada servis aktif</div>';return}
+    var s='';
+    var statusColor={"MASUK":"#1565C0","PROSES":"#E65100","SELESAI":"#2E7D32","DIAMBIL":"#999"};
+    var statusEmoji={"MASUK":"\ud83d\udce5","PROSES":"\ud83d\udd27","SELESAI":"\u2705","DIAMBIL":"\ud83d\udc4b"};
+    for(var i=0;i<items.length;i++){
+      var it=items[i];
+      var c=statusColor[it.status]||"#666";
+      var em=statusEmoji[it.status]||"\ud83d\udccb";
+      s+='<div class="servis-card">';
+      s+='<div style="display:flex;justify-content:space-between;align-items:center">';
+      s+='<div style="font-weight:700;font-size:16px">'+esc(it.sn)+'</div>';
+      s+='<span class="servis-badge" style="background:'+c+';color:#fff">'+em+' '+esc(it.status)+'</span>';
+      s+='</div>';
+      s+='<div style="color:#666;font-size:14px;margin-top:6px">'+esc(it.model)+'</div>';
+      s+='<div style="margin-top:8px">';
+      s+='<div style="font-size:13px"><b>Kerusakan:</b> '+esc(it.kerusakan)+'</div>';
+      s+='<div style="font-size:13px"><b>Estimasi:</b> Rp '+esc(it.estimasi)+'</div>';
+      s+='<div style="font-size:13px"><b>Konsumen:</b> '+esc(it.nama)+' | '+esc(it.hp)+'</div>';
+      s+='<div style="font-size:13px"><b>Lokasi:</b> '+esc(it.lokasi)+' | <b>Masuk:</b> '+esc(it.tglMasuk)+'</div>';
+      if(it.catatan)s+='<div style="font-size:13px;margin-top:4px;color:#E65100"><b>Catatan:</b><br>'+esc(it.catatan).replace(/\n/g,"<br>")+'</div>';
+      s+='</div>';
+      s+='<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+      if(it.status==="MASUK")s+='<button class="sbtn" data-act="supdate" data-sn="'+esc(it.sn)+'" data-st="PROSES" style="background:#E65100">&#128295; Proses</button>';
+      if(it.status==="PROSES")s+='<button class="sbtn" data-act="supdate" data-sn="'+esc(it.sn)+'" data-st="SELESAI" style="background:#2E7D32">&#9989; Selesai</button>';
+      if(it.status==="SELESAI")s+='<button class="sbtn" data-act="sdiambil" data-sn="'+esc(it.sn)+'" data-model="'+esc(it.model)+'" data-est="'+esc(it.estimasi)+'" style="background:#999">&#128075; Diambil</button>';
+      s+='<button class="sbtn" data-act="saddnote" data-sn="'+esc(it.sn)+'" style="background:#007AFF">&#128221; Note</button>';
+      s+='</div></div>';
+    }
+    $("servisContent").innerHTML=s;
+  }
+
+  function showServisInvoice(d){
+    var w=window.open("","","width=400,height=600");
+    w.document.write('<html><head><title>Invoice Servis</title>');
+    w.document.write('<style>body{font-family:Arial,sans-serif;padding:20px;max-width:400px;margin:0 auto}');
+    w.document.write('.hdr{background:#222;color:#fff;padding:15px;text-align:center;border-radius:8px 8px 0 0}');
+    w.document.write('.hdr h2{margin:0;font-size:18px}');
+    w.document.write('.info{padding:10px;border-bottom:1px solid #eee;font-size:13px}');
+    w.document.write('.info b{display:inline-block;width:100px}');
+    w.document.write('.total{background:#222;color:#fff;padding:15px;text-align:center;font-size:20px;font-weight:bold}');
+    w.document.write('.status-paid{background:#d4edda;color:#155724;padding:10px;text-align:center;font-weight:bold}');
+    w.document.write('.status-unpaid{background:#f8d7da;color:#721c24;padding:10px;text-align:center;font-weight:bold}');
+    w.document.write('.btn-print{display:block;width:100%;padding:12px;background:#007AFF;color:#fff;border:none;border-radius:8px;font-size:16px;margin-top:15px;cursor:pointer}');
+    w.document.write('</style></head><body>');
+    w.document.write('<div class="hdr"><h2>FANBOY STORE</h2><div>Premium Used Device</div><div style="margin-top:8px;font-size:14px">INVOICE SERVIS</div></div>');
+    w.document.write('<div class="info"><b>Tanggal:</b> '+d.tglSelesai+'</div>');
+    w.document.write('<div class="info"><b>SN:</b> '+d.sn+'</div>');
+    w.document.write('<div class="info"><b>Model:</b> '+d.model+'</div>');
+    w.document.write('<div class="info"><b>Kerusakan:</b> '+d.kerusakan+'</div>');
+    w.document.write('<div class="info"><b>Estimasi:</b> Rp '+d.estimasi+'</div>');
+    w.document.write('<div class="info"><b>Konsumen:</b> '+d.nama+'</div>');
+    w.document.write('<div class="info"><b>HP:</b> '+d.hp+'</div>');
+    if(d.catatan)w.document.write('<div class="info"><b>Catatan:</b> '+d.catatan+'</div>');
+    w.document.write('<div class="total">TOTAL: Rp '+fmt(d.biayaAktual)+'</div>');
+    if(d.statusBayar==="LUNAS")w.document.write('<div class="status-paid">&#9989; LUNAS</div>');
+    else w.document.write('<div class="status-unpaid">&#10060; BELUM LUNAS</div>');
+    w.document.write('<button class="btn-print" onclick="window.print()">Cetak Invoice</button>');
+    w.document.write('</body></html>');
+    w.document.close();
+  }
+
+  // ====== BOOT ======
+  // This runs immediately - no DOMContentLoaded needed because script is at bottom
+  goHome();
+
+})();
+  </script>
+</body>
+</html>
