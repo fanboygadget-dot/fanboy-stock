@@ -148,6 +148,7 @@
     s+='<div class="nav-card" style="background:#E8F5E9" data-act="page" data-page="input"><div class="nav-icon">&#128230;</div><div class="nav-label">INPUT STOK</div></div>';
     s+='<div class="nav-card" style="background:#FFF3E0" data-act="page" data-page="transfer"><div class="nav-icon">&#128260;</div><div class="nav-label">PINDAH STOK</div></div>';
     s+='<div class="nav-card" style="background:#E3F2FD" data-act="page" data-page="invoice"><div class="nav-icon">&#127915;</div><div class="nav-label">BUAT INVOICE</div></div>';
+    s+='<div class="nav-card" style="background:#FCE4EC" data-act="page" data-page="tradein"><div class="nav-icon">&#128257;</div><div class="nav-label">TRADE-IN</div></div>';
     s+='<div class="nav-card" style="background:#FFF8E1" data-act="page" data-page="servis"><div class="nav-icon">&#128295;</div><div class="nav-label">SERVIS</div></div>';
     s+='</div>';
     s+='<input type="text" class="sr" placeholder="Cari semua barang..." data-act="gsearch">';
@@ -269,6 +270,7 @@
     if(page==="input")renderInputPage();
     else if(page==="transfer")renderTransferPage();
     else if(page==="invoice")renderInvoicePage();
+    else if(page==="tradein")renderTradeInPage();
     else if(page==="servis")renderServisPage();
     else goHome();
   }
@@ -283,6 +285,11 @@
     else if(act==="detail")goDetail(el.getAttribute("data-loc"),el.getAttribute("data-st"));
     else if(act==="item")goItem(el.getAttribute("data-sn"));
     else if(act==="page")goPage(el.getAttribute("data-page"));
+    else if(act==="tiAddBeli")tiAddBeli();
+    else if(act==="tiAddTukar")tiAddTukar();
+    else if(act==="tiRemoveBeli"){_tiBeliItems.splice(Number(el.getAttribute("data-idx")),1);renderTiBeliList();updateTiTotal()}
+    else if(act==="tiRemoveTukar"){_tiTukarItems.splice(Number(el.getAttribute("data-idx")),1);renderTiTukarList();updateTiTotal()}
+    else if(act==="tiSubmit")tiSubmit();
     else if(act==="sstab"){
       var tabs=document.querySelectorAll(".servis-tab");
       for(var i=0;i<tabs.length;i++)tabs[i].className="servis-tab";
@@ -520,6 +527,177 @@
         .withFailureHandler(function(e){btn.disabled=false;btn.textContent="BUAT INVOICE";var el=$("result");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message})
         .createInvoice(data);
     });
+  }
+
+  // ====== TRADE-IN PAGE ======
+  var _tiBeliItems = [];
+  var _tiTukarItems = [];
+
+  function renderTradeInPage(){
+    _tiBeliItems = [];
+    _tiTukarItems = [];
+    var s='';
+    s+='<div class="hdr"><button class="bk" data-act="home">&#8592; Menu</button><h1>Trade-In</h1><div class="sub">Tukar tambah dengan konsumen</div></div>';
+    s+='<div class="w">';
+    s+='<div class="form-group"><label>Nama Buyer</label><input type="text" id="tiBuyer" required placeholder="Nama konsumen"></div>';
+    s+='<div class="form-group"><label>Sales</label><input type="text" id="tiSales" required placeholder="Nama sales"></div>';
+    s+='<div class="form-group"><label>Handler</label><input type="text" id="tiHandler" placeholder="Nama handler (opsional)"></div>';
+    s+='<div style="margin:20px 0 10px;font-weight:700;font-size:16px;color:#C62828">BELI (Toko beli dari konsumen)</div>';
+    s+='<div class="msg-info">SN harus ada di inventory. Harga default = Harga Jual di sistem.</div>';
+    s+='<div id="tiBeliList"></div>';
+    s+='<div style="display:flex;gap:8px;margin-bottom:16px">';
+    s+='<input type="text" id="tiBeliSn" placeholder="Masukkan SN" style="flex:1;padding:12px;border:1px solid #e5e5ea;border-radius:10px;font-size:15px">';
+    s+='<button type="button" class="btn" style="width:auto;padding:12px 20px;margin:0" data-act="tiAddBeli">+ Tambah</button>';
+    s+='</div>';
+    s+='<div id="tiBeliInfo" class="item-info"></div>';
+    s+='<div style="margin:20px 0 10px;font-weight:700;font-size:16px;color:#1565C0">TUKAR (Konsumen kasih ke toko)</div>';
+    s+='<div class="msg-info">Barang baru yang masuk inventory. Kosongkan jika tidak ada tukar tambah.</div>';
+    s+='<div id="tiTukarList"></div>';
+    s+='<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;padding:12px;background:#f5f5f7;border-radius:12px">';
+    s+='<input type="text" id="tiTukarSn" placeholder="SN unit tukar">';
+    s+='<input type="text" id="tiTukarModel" placeholder="Model (contoh: MacBook Air M1)">';
+    s+='<input type="text" id="tiTukarSpec" placeholder="Spec (contoh: 8/256)">';
+    s+='<input type="number" id="tiTukarHarga" placeholder="Harga tukar (Rp)">';
+    s+='<button type="button" class="btn" style="width:auto;padding:12px 20px;margin:0;background:#1565C0" data-act="tiAddTukar">+ Tambah Tukar</button>';
+    s+='</div>';
+    s+='<div id="tiTotalBox" class="total-box" style="display:none"></div>';
+    s+='<button type="button" class="btn" id="tiSubmitBtn" data-act="tiSubmit" style="background:#C62828">BUAT INVOICE TRADE-IN</button>';
+    s+='<div id="tiResult"></div>';
+    s+='</div>';
+    app().innerHTML=s;
+    renderTiBeliList();
+    renderTiTukarList();
+
+    // SN lookup on Enter
+    var beliSnInput=document.getElementById("tiBeliSn");
+    if(beliSnInput){
+      beliSnInput.addEventListener("keydown",function(e){
+        if(e.key==="Enter"){e.preventDefault();tiAddBeli()}
+      });
+    }
+  }
+
+  function tiAddBeli(){
+    var snInput=document.getElementById("tiBeliSn");
+    var sn=snInput.value.trim();
+    if(!sn)return;
+    // Check duplicate
+    for(var i=0;i<_tiBeliItems.length;i++){
+      if(_tiBeliItems[i].sn.toUpperCase()===sn.toUpperCase()){alert("SN sudah ditambahkan");return}
+    }
+    snInput.disabled=true;
+    google.script.run.withSuccessHandler(function(r){
+      snInput.disabled=false;
+      if(r.found){
+        if(r.status!=="Available"){alert("SN "+sn+" status: "+r.status+", bukan Available");return}
+        _tiBeliItems.push({sn:r.sn,model:r.model,spec:r.spec,harga:r.harga,modal:r.modal});
+        snInput.value="";
+        renderTiBeliList();
+        updateTiTotal();
+      } else {
+        alert("SN tidak ditemukan di inventory");
+      }
+    }).withFailureHandler(function(e){
+      snInput.disabled=false;
+      alert("Error: "+e.message);
+    }).lookupTradeInSn(sn);
+  }
+
+  function renderTiBeliList(){
+    var el=document.getElementById("tiBeliList");
+    if(!el)return;
+    if(!_tiBeliItems.length){el.innerHTML='<div style="color:#999;font-size:14px;padding:8px">Belum ada item BELI</div>';return}
+    var s='';
+    for(var i=0;i<_tiBeliItems.length;i++){
+      var it=_tiBeliItems[i];
+      s+='<div class="it" style="display:flex;justify-content:space-between;align-items:center">';
+      s+='<div><div class="mn">'+esc(it.model)+'</div><div class="ms">'+esc(it.spec)+' | SN: '+esc(it.sn)+'</div></div>';
+      s+='<div style="text-align:right"><div class="mp">Rp '+fmt(it.harga)+'</div>';
+      s+='<button class="sbtn" style="background:#C62828;font-size:11px;padding:4px 10px" data-act="tiRemoveBeli" data-idx="'+i+'">Hapus</button></div>';
+      s+='</div>';
+    }
+    el.innerHTML=s;
+  }
+
+  function tiAddTukar(){
+    var sn=document.getElementById("tiTukarSn").value.trim();
+    var model=document.getElementById("tiTukarModel").value.trim();
+    var spec=document.getElementById("tiTukarSpec").value.trim();
+    var harga=Number(document.getElementById("tiTukarHarga").value)||0;
+    if(!sn){alert("Masukkan SN");return}
+    if(!model){alert("Masukkan Model");return}
+    for(var i=0;i<_tiTukarItems.length;i++){
+      if(_tiTukarItems[i].sn.toUpperCase()===sn.toUpperCase()){alert("SN sudah ditambahkan");return}
+    }
+    _tiTukarItems.push({sn:sn,model:model,spec:spec||"-",harga:harga});
+    document.getElementById("tiTukarSn").value="";
+    document.getElementById("tiTukarModel").value="";
+    document.getElementById("tiTukarSpec").value="";
+    document.getElementById("tiTukarHarga").value="";
+    renderTiTukarList();
+    updateTiTotal();
+  }
+
+  function renderTiTukarList(){
+    var el=document.getElementById("tiTukarList");
+    if(!el)return;
+    if(!_tiTukarItems.length){el.innerHTML='<div style="color:#999;font-size:14px;padding:8px">Belum ada item TUKAR</div>';return}
+    var s='';
+    for(var i=0;i<_tiTukarItems.length;i++){
+      var it=_tiTukarItems[i];
+      s+='<div class="it" style="display:flex;justify-content:space-between;align-items:center">';
+      s+='<div><div class="mn">'+esc(it.model)+'</div><div class="ms">'+esc(it.spec)+' | SN: '+esc(it.sn)+'</div></div>';
+      s+='<div style="text-align:right"><div class="mp">Rp '+fmt(it.harga)+'</div>';
+      s+='<button class="sbtn" style="background:#C62828;font-size:11px;padding:4px 10px" data-act="tiRemoveTukar" data-idx="'+i+'">Hapus</button></div>';
+      s+='</div>';
+    }
+    el.innerHTML=s;
+  }
+
+  function updateTiTotal(){
+    var totalBeli=0,totalTukar=0;
+    for(var i=0;i<_tiBeliItems.length;i++)totalBeli+=Number(_tiBeliItems[i].harga)||0;
+    for(var i=0;i<_tiTukarItems.length;i++)totalTukar+=Number(_tiTukarItems[i].harga)||0;
+    var dibayar=Math.max(0,totalBeli-totalTukar);
+    var el=document.getElementById("tiTotalBox");
+    if(!_tiBeliItems.length){el.style.display="none";return}
+    el.style.display="flex";
+    el.innerHTML='<div><div style="font-size:13px;opacity:.8">Total Beli: Rp '+fmt(totalBeli)+'</div>' +
+      '<div style="font-size:13px;opacity:.8">Total Tukar: Rp '+fmt(totalTukar)+'</div></div>' +
+      '<div><div style="font-size:11px;opacity:.8">DIBAYAR</div><div class="fw">Rp '+fmt(dibayar)+'</div></div>';
+  }
+
+  function tiSubmit(){
+    if(!_tiBeliItems.length){alert("Tambah minimal 1 item BELI");return}
+    var buyer=document.getElementById("tiBuyer").value.trim();
+    var sales=document.getElementById("tiSales").value.trim();
+    if(!buyer){alert("Masukkan nama Buyer");return}
+    if(!sales){alert("Masukkan nama Sales");return}
+    var btn=document.getElementById("tiSubmitBtn");
+    btn.disabled=true;btn.textContent="Memproses...";
+    var data={
+      buyer:buyer, sales:sales,
+      handler:document.getElementById("tiHandler").value.trim(),
+      beliItems:_tiBeliItems,
+      tukarItems:_tiTukarItems
+    };
+    google.script.run.withSuccessHandler(function(r){
+      btn.disabled=false;btn.textContent="BUAT INVOICE TRADE-IN";
+      var el=document.getElementById("tiResult");
+      if(r.ok){
+        el.className="msg-success";el.style.display="block";
+        var extra="";
+        if(r.beliNotFound&&r.beliNotFound.length)extra+="<br>SN tidak ditemukan: "+r.beliNotFound.join(", ");
+        if(r.tukarAdded&&r.tukarAdded.length)extra+="<br>Tukar masuk inventory: "+r.tukarAdded.join(", ");
+        el.innerHTML="\u2705 Trade-In "+r.invoiceNo+" dibuat!<br>Buyer: "+buyer+"<br>Bayar: Rp "+fmt(r.totalDibayar)+
+          (r.telegramSent?"<br><br>\ud83d\udce8 Notifikasi terkirim":"<br><br>\u26a0\ufe0f Notifikasi Telegram gagal")+extra;
+      } else {
+        el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg;
+      }
+    }).withFailureHandler(function(e){
+      btn.disabled=false;btn.textContent="BUAT INVOICE TRADE-IN";
+      var el=document.getElementById("tiResult");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message;
+    }).createTradeIn(data);
   }
 
   // ====== SERVIS PAGE ======

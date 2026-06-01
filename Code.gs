@@ -334,6 +334,173 @@ function completeServis(sn, biaya, statusBayar) {
 }
 
 // ============================================================
+// TRADE-IN FUNCTIONS
+// ============================================================
+function lookupTradeInSn(sn) {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
+    sn = sn.toUpperCase().trim();
+    for (var r = 1; r < data.length; r++) {
+      var row = data[r];
+      if (!row || row.length < 12) continue;
+      if (String(row[0] || '').toUpperCase().trim() === sn) {
+        var status = String(row[8] || '').trim();
+        return {
+          found: true, sn: String(row[0] || ''), model: String(row[1] || ''),
+          spec: String(row[2] || ''), harga: Number(row[7]) || 0,
+          modal: Number(row[6]) || 0, status: status, lokasi: String(row[11] || '')
+        };
+      }
+    }
+    return {found: false};
+  } catch(e) {
+    return {found: false, error: e.toString()};
+  }
+}
+
+function createTradeIn(data) {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var sheet = ss.getSheetByName('Inventaris_Laptop');
+    var logSheet = ss.getSheetByName('Log_Penjualan_Invoice');
+    var values = sheet.getDataRange().getValues();
+    var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
+    var current_date = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd MMMM yyyy');
+    var invoiceNo = 'TRD-FANBOY-' + Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyyMMdd') + '-' + data.beliItems[0].sn;
+
+    var totalBeli = 0;
+    var totalModalBeli = 0;
+    var beliProcessed = [];
+    var beliNotFound = [];
+
+    // Process BELI items (cari di inventory, mark Sold)
+    for (var i = 0; i < data.beliItems.length; i++) {
+      var item = data.beliItems[i];
+      var sn = item.sn.toUpperCase().trim();
+      var found = false;
+      for (var r = 1; r < values.length; r++) {
+        var row = values[r];
+        if (!row || row.length < 12) continue;
+        if (String(row[0] || '').toUpperCase().trim() === sn) {
+          var harga = item.harga || Number(row[7]) || 0;
+          var modal = Number(row[6]) || 0;
+          totalBeli += Number(harga);
+          totalModalBeli += modal;
+          beliProcessed.push({
+            sn: sn, model: String(row[1] || ''), spec: String(row[2] || ''),
+            harga: harga, modal: modal
+          });
+          // Mark as Sold
+          sheet.getRange(r + 1, 9).setValue('Sold');
+          // Update history
+          var history = String(row[12] || '');
+          sheet.getRange(r + 1, 13).setValue(history + (history ? ' | ' : '') + today + ': Trade-In to ' + data.buyer);
+          found = true;
+          break;
+        }
+      }
+      if (!found) beliNotFound.push(sn);
+    }
+
+    if (beliProcessed.length === 0) return {ok: false, msg: 'SN tidak ditemukan: ' + beliNotFound.join(', ')};
+
+    // Process TUKAR items (tambah ke inventory)
+    var totalTukar = 0;
+    var tukarProcessed = [];
+    var tukarAdded = [];
+    var existingSnSet = {};
+    for (var r = 1; r < values.length; r++) {
+      if (values[r] && values[r][0]) existingSnSet[String(values[r][0]).toUpperCase().trim()] = true;
+    }
+    var firstLoc = beliProcessed.length > 0 ? (function() {
+      for (var r = 1; r < values.length; r++) {
+        if (values[r] && String(values[r][0] || '').toUpperCase().trim() === beliProcessed[0].sn) return String(values[r][11] || 'JOGJA');
+      }
+      return 'JOGJA';
+    })() : 'JOGJA';
+
+    for (var j = 0; j < data.tukarItems.length; j++) {
+      var tk = data.tukarItems[j];
+      var tkSn = tk.sn.toUpperCase().trim();
+      var tkHarga = Number(tk.harga) || 0;
+      totalTukar += tkHarga;
+      tukarProcessed.push({sn: tkSn, model: tk.model || 'TRADE-IN', spec: tk.spec || '-', harga: tk.harga});
+
+      if (!existingSnSet[tkSn]) {
+        // Tambah ke inventory
+        sheet.appendRow([
+          tkSn, tk.model || 'TRADE-IN', tk.spec || '-', 'C',
+          String(tkHarga), '0', String(tkHarga), String(tkHarga),
+          'Available', today, data.buyer, firstLoc, '', 'tradein_web'
+        ]);
+        existingSnSet[tkSn] = true;
+        tukarAdded.push(tkSn);
+      }
+    }
+
+    var margin = totalBeli - totalModalBeli;
+    var salesFee = margin > 0 ? Math.round(margin * 0.10) : 0;
+    var handlingFee = margin > 0 ? Math.round(margin * 0.05) : 0;
+    var totalDibayar = Math.max(0, totalBeli - totalTukar);
+
+    // Log BELI items
+    for (var b = 0; b < beliProcessed.length; b++) {
+      var bp = beliProcessed[b];
+      logSheet.appendRow([
+        invoiceNo, bp.sn, data.buyer, String(bp.harga), today,
+        data.sales, data.handler || '-', 'Lunas (Trade-In)', margin, salesFee, handlingFee
+      ]);
+    }
+
+    // Kirim notifikasi Telegram
+    var tgSent = false;
+    try {
+      var props = PropertiesService.getScriptProperties();
+      var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
+      var invoiceGroupId = '-1003978471711';
+      if (botToken) {
+        var beliLines = [];
+        for (var b = 0; b < beliProcessed.length; b++) {
+          var bp = beliProcessed[b];
+          beliLines.push('  - ' + bp.sn + ' | ' + bp.model + ' | Rp ' + Number(bp.harga).toLocaleString('id-ID'));
+        }
+        var tukarLines = [];
+        for (var t = 0; t < tukarProcessed.length; t++) {
+          var tp = tukarProcessed[t];
+          tukarLines.push('  - ' + tp.sn + ' | ' + tp.model + ' | Rp ' + Number(tp.harga).toLocaleString('id-ID'));
+        }
+        var msg = 'TRADE-IN WEB\n\n' +
+                  'No: ' + invoiceNo + '\n' +
+                  'Buyer: ' + data.buyer + '\n' +
+                  'Sales: ' + data.sales + '\n' +
+                  'Tanggal: ' + today + '\n\n' +
+                  'BELI (Toko beli):\n' + beliLines.join('\n') + '\n\n' +
+                  'TUKAR (Konsumen tukar):\n' + (tukarLines.length ? tukarLines.join('\n') : '  -') + '\n\n' +
+                  'Total Beli: Rp ' + totalBeli.toLocaleString('id-ID') + '\n' +
+                  'Total Tukar: Rp ' + totalTukar.toLocaleString('id-ID') + '\n' +
+                  'Dibayar: Rp ' + totalDibayar.toLocaleString('id-ID');
+        var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
+        var resp = UrlFetchApp.fetch(url, {
+          'method': 'post', 'contentType': 'application/json',
+          'payload': JSON.stringify({'chat_id': invoiceGroupId, 'text': msg}),
+          'muteHttpExceptions': true
+        });
+        tgSent = JSON.parse(resp.getContentText()).ok === true;
+      }
+    } catch(tgErr) { tgSent = false; }
+
+    return {
+      ok: true, invoiceNo: invoiceNo, telegramSent: tgSent,
+      totalBeli: totalBeli, totalTukar: totalTukar, totalDibayar: totalDibayar,
+      beliNotFound: beliNotFound, tukarAdded: tukarAdded
+    };
+  } catch(e) {
+    return {ok: false, msg: e.toString()};
+  }
+}
+
+// ============================================================
 // SETUP: Jalankan sekali untuk simpan bot token
 // ============================================================
 function setupTelegramToken(token) {
