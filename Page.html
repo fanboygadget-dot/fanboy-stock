@@ -514,7 +514,7 @@
         .withSuccessHandler(function(r){
           btn.disabled=false;btn.textContent="BUAT INVOICE";
           var el=$("result");
-          if(r.ok){el.className="msg-success";el.style.display="block";el.innerHTML="\u2705 Invoice "+r.invoiceNo+" dibuat!<br>Buyer: "+data.buyer+"<br>Total: Rp "+fmt(data.hargaFinal)+"<br><br>PDF sudah dikirim ke grup Invoice";}
+          if(r.ok){el.className="msg-success";el.style.display="block";el.innerHTML="\u2705 Invoice "+r.invoiceNo+" dibuat!<br>Buyer: "+data.buyer+"<br>Total: Rp "+fmt(data.hargaFinal)+(r.telegramSent?"<br><br>\ud83d\udce8 Notifikasi terkirim ke grup Invoice":"<br><br>\u26a0\ufe0f Invoice tersimpan, tapi notifikasi Telegram gagal");}
           else{el.className="msg-error";el.style.display="block";el.textContent="\u274c "+r.msg}
         })
         .withFailureHandler(function(e){btn.disabled=false;btn.textContent="BUAT INVOICE";var el=$("result");el.className="msg-error";el.style.display="block";el.textContent="\u274c "+e.message})

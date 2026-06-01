@@ -170,7 +170,47 @@ function createInvoice(data) {
       invoiceNo, data.sn, data.buyer, data.hargaFinal, today,
       data.sales, data.handler || '-', data.payment + ' (Web)', margin, salesFee, handlingFee
     ]);
-    return {ok: true, invoiceNo: invoiceNo};
+
+    // Kirim notifikasi ke Telegram Invoice Group
+    var tgSent = false;
+    try {
+      var props = PropertiesService.getScriptProperties();
+      var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
+      var invoiceGroupId = '-1003978471711';
+      if (botToken) {
+        var model = String(item[1] || '');
+        var spec = String(item[2] || '');
+        var msg = 'INVOICE WEB\n\n' +
+                  'No: ' + invoiceNo + '\n' +
+                  'Buyer: ' + data.buyer + '\n' +
+                  'SN: ' + data.sn + '\n' +
+                  'Model: ' + model + '\n' +
+                  'Spec: ' + spec + '\n' +
+                  'Harga: Rp ' + Number(data.hargaFinal).toLocaleString('id-ID') + '\n' +
+                  'Bayar: ' + data.payment + '\n' +
+                  'Sales: ' + data.sales + '\n' +
+                  'Tanggal: ' + today;
+        var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
+        var payload = {
+          'chat_id': invoiceGroupId,
+          'text': msg
+        };
+        var options = {
+          'method': 'post',
+          'contentType': 'application/json',
+          'payload': JSON.stringify(payload),
+          'muteHttpExceptions': true
+        };
+        var resp = UrlFetchApp.fetch(url, options);
+        var result = JSON.parse(resp.getContentText());
+        tgSent = result.ok === true;
+      }
+    } catch(tgErr) {
+      // Telegram gagal, tapi invoice tetap tersimpan
+      tgSent = false;
+    }
+
+    return {ok: true, invoiceNo: invoiceNo, telegramSent: tgSent};
   } catch(e) {
     return {ok: false, msg: e.toString()};
   }
@@ -291,4 +331,32 @@ function completeServis(sn, biaya, statusBayar) {
   } catch(e) {
     return {ok: false, msg: e.toString()};
   }
+}
+
+// ============================================================
+// SETUP: Jalankan sekali untuk simpan bot token
+// ============================================================
+function setupTelegramToken(token) {
+  PropertiesService.getScriptProperties().setProperty('TELEGRAM_BOT_TOKEN', token);
+  return 'Token tersimpan!';
+}
+
+function testTelegram() {
+  var props = PropertiesService.getScriptProperties();
+  var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
+  if (!botToken) return {ok: false, msg: 'Token belum diset. Jalankan setupTelegramToken(token) dulu.'};
+  var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
+  var payload = {
+    'chat_id': '-1003978471711',
+    'text': 'Test dari Apps Script - Invoice Web'
+  };
+  var options = {
+    'method': 'post',
+    'contentType': 'application/json',
+    'payload': JSON.stringify(payload),
+    'muteHttpExceptions': true
+  };
+  var resp = UrlFetchApp.fetch(url, options);
+  var result = JSON.parse(resp.getContentText());
+  return {ok: result.ok, result: result};
 }
