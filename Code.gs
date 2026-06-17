@@ -631,21 +631,49 @@ function getSalesHistory() {
     var r = data[i];
     if (!r[0]) continue;
     var sn = String(r[1] || '').toUpperCase().trim();
-    var tanggal = parseRawDate(r[5]);
+    
+    // Detect old format: column E (r[4]) looks like a date, column I (r[8]) is empty
+    var colE = String(r[4] || '');
+    var isOldFormat = !r[8] && (colE.indexOf('/') > -1 || colE.indexOf('-') > 0) && colE.match(/\d{4}/);
+    
+    var tanggal, harga, sales, handler, status, dpAmount, sisaBayar, catatan;
+    if (isOldFormat) {
+      // Old format: [invNo, SN, buyer, harga(lost→from sisa), tanggal(E), sales(F), handler(G), status(H), ...dp(L), sisa(M), catatan(N)]
+      tanggal = parseRawDate(r[4]);
+      harga = parseHarga(r[12] || '0'); // M=sisa (=harga when dp=0)
+      if (!harga) harga = parseHarga(r[3]); // fallback: D might have VLOOKUP modal
+      sales = String(r[5] || '');
+      handler = String(r[6] || '');
+      status = String(r[7] || '');
+      dpAmount = parseHarga(r[11] || '0'); // L=dp
+      sisaBayar = parseHarga(r[12] || '0'); // M=sisa
+      catatan = String(r[13] || ''); // N=catatan
+    } else {
+      // New format: [invNo, SN, buyer, modal(D), harga(E), tanggal(F), sales(G), handler(H), status(I), ...dp(M), sisa(N), catatan(O)]
+      tanggal = parseRawDate(r[5]);
+      harga = parseHarga(r[4]);
+      sales = String(r[6] || '');
+      handler = String(r[7] || '');
+      status = String(r[8] || '');
+      dpAmount = parseHarga(r[12] || '0');
+      sisaBayar = parseHarga(r[13] || '0');
+      catatan = String(r[14] || '');
+    }
+    
     result.push({
       tanggal: String(tanggal || ''),
       invNo: String(r[0] || ''),
       model: snModel[sn] || '-',
       buyer: String(r[2] || ''),
       modal: parseHarga(r[3]),
-      harga: parseHarga(r[4]),
-      sales: String(r[6] || ''),
-      handler: String(r[7] || ''),
+      harga: harga,
+      sales: sales,
+      handler: handler,
       sn: String(r[1] || ''),  // hidden, for download
-      status: String(r[8] || ''),
-      dpAmount: parseHarga(r[12] || '0'),
-      sisaBayar: parseHarga(r[13] || '0'),
-      catatan: String(r[14] || ''),
+      status: status,
+      dpAmount: dpAmount,
+      sisaBayar: sisaBayar,
+      catatan: catatan,
       rowIndex: i + 1
     });
   }
