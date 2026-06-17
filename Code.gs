@@ -462,9 +462,19 @@ function createInvoice(data) {
     if (!item) { resultItems.push({sn:sn, ok:false, msg:'SN tidak ditemukan'}); continue; }
     if (item.status !== 'Available') { resultItems.push({sn:sn, ok:false, msg:'Status: '+item.status}); continue; }
     
+    // Check for duplicate SN in invoice log
+    var snUpper = sn.toUpperCase().trim();
+    for (var d = 1; d < invData.length; d++) {
+      if (String(invData[d][1] || '').toUpperCase().trim() === snUpper) {
+        resultItems.push({sn:sn, ok:false, msg:'SN sudah ada di invoice: ' + String(invData[d][0] || '')}); 
+        sn = null; break;
+      }
+    }
+    if (!sn) continue;
+    
     if (!harga) harga = item.harga;
     
-    // Save invoice row: [invNo, SN, buyer, price, date, sales, handler, status, margin, sales_fee, handling_fee, dp, sisa, catatan]
+    // Save invoice row: [invNo, SN, buyer, modal, harga, tanggal, sales, handler, status, margin, sales_fee, handling_fee, dp, sisa, catatan]
     var dpAmount = Number(data.dpAmount) || 0;
     var sisaBayar = Math.max(0, harga - dpAmount);
     var catatan = data.catatan || '';
@@ -841,11 +851,11 @@ function markInvoiceLunas(data) {
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
-      var status = String(rows[i][7] || '').toUpperCase();
+      var status = String(rows[i][8] || '').toUpperCase();
       if (status !== 'DP') return {ok: false, msg: 'Invoice ini bukan status DP'};
       var harga = Number(rows[i][4]) || 0;
       // Update: status=Lunas, dp=harga(full), sisa=0
-      invSheet.getRange(i + 1, 8).setValue('Lunas');   // col 8 = status
+      invSheet.getRange(i + 1, 9).setValue('Lunas');   // col 9 = Status_Pembayaran (I)
       invSheet.getRange(i + 1, 12).setValue(harga);     // col 12 = dp (full amount now paid)
       invSheet.getRange(i + 1, 13).setValue(0);          // col 13 = sisa
       return {ok: true, msg: 'Invoice ditandai LUNAS'};
@@ -1248,9 +1258,24 @@ function createTradeIn(data) {
   for (var i = 0; i < data.tukarItems.length; i++) totalTukar += Number(data.tukarItems[i].harga) || 0;
   var dibayar = Math.max(0, totalBeli - totalTukar);
 
+  // Build trade-in note with TUKAR items info
+  var tukarNote = '';
+  if (data.tukarItems && data.tukarItems.length > 0) {
+    var parts = [];
+    for (var t = 0; t < data.tukarItems.length; t++) {
+      var tk = data.tukarItems[t];
+      parts.push(tk.sn + '|' + tk.model + '|' + (tk.spec||'') + '|' + (Number(tk.harga)||0));
+    }
+    tukarNote = 'TUKAR:' + parts.join(';') + '|total=' + totalTukar + '|bayar=' + dibayar;
+  }
   var invData = invSheet.getDataRange().getValues();
   var invNo = 'TI-' + String(invData.length).padStart(4, '0');
-  invSheet.appendRow([invNo, today, 'TRADE-IN', data.beliItems.map(function(b){return b.sn}).join(', '), 'Trade-In', data.buyer, dibayar, 'TRADE-IN', data.sales, data.handler || '']);
+  var beliSnList = data.beliItems.map(function(b){return b.sn}).join(', ');
+  // Log each BELI item as separate row: [invNo, SN, buyer, modal=0, harga=today, tanggal, sales, handler, status, ...]
+  for (var b = 0; b < data.beliItems.length; b++) {
+    var bi = data.beliItems[b];
+    invSheet.appendRow([invNo, bi.sn, data.buyer||'', 0, Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, tukarNote]);
+  }
 
   return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded};
 }
