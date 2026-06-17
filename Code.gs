@@ -43,9 +43,31 @@ function parseRawDate(val) {
   return String(val); // already display string
 }
 
+// --- BULK UPDATE MODAL VLOOKUP ---
+function bulkUpdateModalVlookup() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
+  
+  // Set VLOOKUP formula di kolom D (Modal) untuk semua baris data (row 2 sampai lastRow)
+  var formulas = [];
+  for (var r = 2; r <= lastRow; r++) {
+    formulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),0)']);
+  }
+  sheet.getRange(2, 4, formulas.length, 1).setFormulas(formulas);
+  
+  return {ok: true, updated: formulas.length, msg: 'Berhasil update ' + formulas.length + ' baris'};
+}
+
 // --- WEB APP ---
 function doGet(e) {
   var page = (e && e.parameter && e.parameter.page) || 'main';
+  // Admin action: bulk update modal VLOOKUP
+  if (page === 'bulk_update_modal') {
+    var result = bulkUpdateModalVlookup();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Modal');
+  }
   if (page === 'pdf') {
     var invNo = e.parameter.inv || '';
     var snParam = e.parameter.sn || '';
