@@ -470,7 +470,7 @@ function createInvoice(data) {
     var catatan = data.catatan || '';
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
-    invSheet.appendRow([nextNo, sn, buyerHP, harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
+    invSheet.appendRow([nextNo, sn, buyerHP, item.modal, harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
     
     // Update status to Sold
     stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
@@ -495,7 +495,7 @@ function createInvoice(data) {
     ]);
     
     // Log trade-in in invoice sheet
-    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', ti.hargaBeli, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
+    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', ti.hargaBeli, 0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
     
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
   }
@@ -599,6 +599,7 @@ function getSalesHistory() {
       invNo: String(r[0] || ''),
       model: snModel[sn] || '-',
       buyer: String(r[2] || ''),
+      modal: parseHarga(r[3]),
       harga: parseHarga(r[4]),
       sales: String(r[6] || ''),
       handler: String(r[7] || ''),
@@ -726,7 +727,7 @@ function updateInvoicePrice(data) {
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
-      invSheet.getRange(i + 1, 4).setValue(Number(data.newHarga));
+      invSheet.getRange(i + 1, 5).setValue(Number(data.newHarga));
       return {ok: true, msg: 'Harga diupdate'};
     }
   }
@@ -741,7 +742,7 @@ function updateInvoiceDate(data) {
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
-      invSheet.getRange(i + 1, 5).setValue(data.newDate);
+      invSheet.getRange(i + 1, 6).setValue(data.newDate);
       return {ok: true, msg: 'Tanggal diupdate'};
     }
   }
@@ -758,7 +759,7 @@ function updateTradeInPrice(data) {
     var invNo = String(rows[i][0] || '');
     var sn = String(rows[i][1] || '').toUpperCase();
     if (invNo === data.invNo && sn === data.sn.toUpperCase()) {
-      invSheet.getRange(i + 1, 4).setValue(Number(data.newHarga));
+      invSheet.getRange(i + 1, 5).setValue(Number(data.newHarga));
       return {ok: true, msg: 'Harga Trade-In diupdate'};
     }
   }
@@ -783,8 +784,8 @@ function updateInvoiceField(data) {
   var invSheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var rows = invSheet.getDataRange().getValues();
   var fieldMap = {
-    'buyer': 2, 'harga': 3, 'tanggal': 4, 'sales': 5, 'handler': 6,
-    'status': 7, 'catatan': 13, 'dp': 11, 'sisa': 12
+    'buyer': 2, 'modal': 3, 'harga': 4, 'tanggal': 5, 'sales': 6, 'handler': 7,
+    'status': 8, 'catatan': 14, 'dp': 12, 'sisa': 13
   };
   var col = fieldMap[data.field];
   if (col === undefined) return {ok: false, msg: 'Field tidak valid: ' + data.field};
@@ -810,8 +811,8 @@ function updateTradeInField(data) {
   var invSheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var rows = invSheet.getDataRange().getValues();
   var fieldMap = {
-    'buyer': 2, 'harga': 3, 'tanggal': 4, 'sales': 5, 'handler': 6,
-    'status': 7, 'catatan': 13, 'dp': 11, 'sisa': 12
+    'buyer': 2, 'modal': 3, 'harga': 4, 'tanggal': 5, 'sales': 6, 'handler': 7,
+    'status': 8, 'catatan': 14, 'dp': 12, 'sisa': 13
   };
   var col = fieldMap[data.field];
   if (col === undefined) return {ok: false, msg: 'Field tidak valid'};
@@ -836,13 +837,13 @@ function markInvoiceLunas(data) {
   var ss = SpreadsheetApp.openById(SS_ID);
   var invSheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var rows = invSheet.getDataRange().getValues();
-  // Layout: [invNo(0), SN(1), buyer(2), price(3), date(4), sales(5), handler(6), status(7), margin(8), sales_fee(9), handling_fee(10), dp(11), sisa(12), catatan(13)]
+  // Layout: [invNo(0), SN(1), buyer(2), modal(3), harga(4), tanggal(5), sales(6), handler(7), status(8), margin(9), sales_fee(10), handling_fee(11), dp(12), sisa(13), catatan(14)]
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
       var status = String(rows[i][7] || '').toUpperCase();
       if (status !== 'DP') return {ok: false, msg: 'Invoice ini bukan status DP'};
-      var harga = Number(rows[i][3]) || 0;
+      var harga = Number(rows[i][4]) || 0;
       // Update: status=Lunas, dp=harga(full), sisa=0
       invSheet.getRange(i + 1, 8).setValue('Lunas');   // col 8 = status
       invSheet.getRange(i + 1, 12).setValue(harga);     // col 12 = dp (full amount now paid)
@@ -888,7 +889,7 @@ function getInvoiceData(invoiceNo, snParam) {
       var tukarItems = [];
       var totalTukar = 0;
       var totalBayar = 0;
-      var catatanRaw = String(invData[i][13] || '');
+      var catatanRaw = String(invData[i][14] || '');
       if (isTradeIn && catatanRaw.indexOf('TUKAR:') === 0) {
         var tukarStr = catatanRaw.substring(6); // Remove 'TUKAR:'
         var parts = tukarStr.split('|');
@@ -943,6 +944,7 @@ function getInvoiceData(invoiceNo, snParam) {
         model: model,
         spec: spec,
         buyer: String(invData[i][2] || ''),
+        modal: parseHarga(invData[i][3]),
         harga: parseHarga(invData[i][4]),
         payment: String(invData[i][8] || 'CASH'),
         sales: String(invData[i][6] || ''),
