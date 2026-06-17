@@ -480,7 +480,10 @@ function createInvoice(data) {
     var catatan = data.catatan || '';
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
-    invSheet.appendRow([nextNo, sn, buyerHP, item.modal, harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
+    invSheet.appendRow([nextNo, sn, buyerHP, '', harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
+    // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
+    var newRow = invSheet.getLastRow();
+    invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
     
     // Update status to Sold
     stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
@@ -505,7 +508,10 @@ function createInvoice(data) {
     ]);
     
     // Log trade-in in invoice sheet
-    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', ti.hargaBeli, 0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
+    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', 0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
+    // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
+    var tiRow = invSheet.getLastRow();
+    invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
     
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
   }
@@ -1271,10 +1277,13 @@ function createTradeIn(data) {
   var invData = invSheet.getDataRange().getValues();
   var invNo = 'TI-' + String(invData.length).padStart(4, '0');
   var beliSnList = data.beliItems.map(function(b){return b.sn}).join(', ');
-  // Log each BELI item as separate row: [invNo, SN, buyer, modal=0, harga=today, tanggal, sales, handler, status, ...]
+  // Log each BELI item as separate row: [invNo, SN, buyer, modal=VLOOKUP, harga, tanggal, sales, handler, status, ...]
   for (var b = 0; b < data.beliItems.length; b++) {
     var bi = data.beliItems[b];
-    invSheet.appendRow([invNo, bi.sn, data.buyer||'', 0, Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, tukarNote]);
+    invSheet.appendRow([invNo, bi.sn, data.buyer||'', '', Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, tukarNote]);
+    // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
+    var bRow = invSheet.getLastRow();
+    invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
   }
 
   return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded};
