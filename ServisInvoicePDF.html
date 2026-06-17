@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Servis <?= data.sn ?></title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; background:#fff; color:#1e293b; }
+  .invoice { max-width:800px; margin:0 auto; padding:0; }
+  
+  .header { background:#0f172a; color:#fff; padding:20px 30px; display:flex; justify-content:space-between; align-items:center; }
+  .header-left .logo { font-size:22px; font-weight:700; }
+  .header-left .subtitle { font-size:11px; opacity:0.7; }
+  .header-right { text-align:right; }
+  .header-right .inv-title { font-size:24px; font-weight:700; letter-spacing:2px; }
+  .header-right .inv-no { font-size:12px; font-weight:600; margin-top:2px; opacity:0.8; }
+  
+  .info-section { display:flex; justify-content:space-between; padding:20px 30px; gap:20px; }
+  .cust-info { flex:1; }
+  .cust-info h3 { font-size:12px; color:#64748b; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; }
+  .cust-info .name { font-size:16px; font-weight:600; }
+  .cust-info .phone { color:#64748b; font-size:13px; margin-top:2px; }
+  .meta-box { background:#f8fafc; padding:14px 18px; border-radius:8px; border:1px solid #e2e8f0; min-width:220px; }
+  .meta-row { display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; }
+  .meta-row:last-child { margin-bottom:0; }
+  .meta-row .label { color:#64748b; }
+  .meta-row .value { font-weight:600; text-align:right; }
+  
+  .detail-box { margin:0 30px 20px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+  .detail-header { background:#f1f5f9; padding:10px 16px; font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid #e2e8f0; }
+  .detail-row { display:flex; padding:12px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .detail-row:last-child { border-bottom:none; }
+  .detail-row .dl { flex:1; color:#64748b; }
+  .detail-row .dv { flex:2; font-weight:500; }
+  
+  .cost-section { margin:0 30px 20px; }
+  .cost-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px; }
+  .cost-row .cl { color:#64748b; }
+  .cost-row .cv { font-weight:600; }
+  .cost-total { display:flex; justify-content:space-between; padding:14px 0; font-size:18px; font-weight:700; border-top:2px solid #0f172a; margin-top:8px; }
+  
+  .badge { margin:0 30px; padding:12px 20px; border-radius:8px; text-align:center; font-weight:700; font-size:15px; }
+  .badge-lunas { background:#0f172a; color:#fff; }
+  .badge-belum { background:#fee2e2; color:#dc2626; }
+  
+  .staff-info { padding:12px 30px; font-size:11px; color:#94a3b8; text-align:center; }
+  
+  .footer { background:#0f172a; color:#fff; padding:18px 30px; margin:20px 30px; border-radius:8px; }
+  .footer h4 { font-size:12px; margin-bottom:8px; letter-spacing:1px; }
+  .footer p { font-size:11px; opacity:0.8; line-height:1.7; }
+  
+  .print-bar { text-align:center; padding:20px; background:#f8fafc; border-top:1px solid #e2e8f0; }
+  .print-btn { background:#0f172a; color:#fff; border:none; padding:14px 40px; font-size:15px; font-weight:600; border-radius:8px; cursor:pointer; }
+  .print-btn:hover { background:#1e293b; }
+  
+  @media print {
+    .print-bar { display:none; }
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .header, .badge-lunas, .footer { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+</style>
+</head>
+<body>
+<div class="invoice">
+  <div class="header">
+    <div class="header-left">
+      <div>
+        <div class="logo">FANBOY <?= data.lokasi ? data.lokasi : 'STORE' ?></div>
+        <div class="subtitle">Premium Used Device</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="inv-title">INVOICE SERVIS</div>
+      <div class="inv-no">SRV-<?= data.sn ?></div>
+    </div>
+  </div>
+  
+  <div class="info-section">
+    <div class="cust-info">
+      <h3>Konsumen</h3>
+      <div class="name"><?= data.nama ?></div>
+      <div class="phone">HP: <?= data.hp ?></div>
+    </div>
+    <div class="meta-box">
+      <div class="meta-row"><span class="label">No. Servis</span><span class="value">SRV-<?= data.sn ?></span></div>
+      <div class="meta-row"><span class="label">Tgl Masuk</span><span class="value"><?= data.tglMasuk ?></span></div>
+      <div class="meta-row"><span class="label">Tgl Selesai</span><span class="value"><?= data.tglSelesai ?></span></div>
+      <div class="meta-row"><span class="label">Lokasi</span><span class="value"><?= data.lokasi ?></span></div>
+    </div>
+  </div>
+  
+  <div class="detail-box">
+    <div class="detail-header">Detail Servis</div>
+    <div class="detail-row"><div class="dl">Unit</div><div class="dv"><?= data.model ?></div></div>
+    <div class="detail-row"><div class="dl">Serial Number</div><div class="dv"><?= data.sn ?></div></div>
+    <div class="detail-row"><div class="dl">Kerusakan</div><div class="dv"><?= data.kerusakan ?></div></div>
+  </div>
+  
+  <div class="cost-section">
+    <div class="cost-row"><span class="cl">Biaya Perbaikan</span><span class="cv" style="color:#059669;font-weight:700">Rp <?= data.biayaFmt ?></span></div>
+    <div class="cost-total"><span>TOTAL BAYAR</span><span>Rp <?= data.biayaFmt ?></span></div>
+  </div>
+  
+  <? if (data.isLunas) { ?>
+  <div class="badge badge-lunas">&#9989; LUNAS</div>
+  <? } else { ?>
+  <div class="badge badge-belum">&#10060; BELUM LUNAS</div>
+  <? } ?>
+  
+  <div class="staff-info">Staff: <?= data.staff ?> | Tgl Ambil: <?= data.tglSelesai ?></div>
+  
+  <div class="footer">
+    <h4>SYARAT & KETENTUAN GARANSI SERVIS</h4>
+    <p>1. Garansi servis berlaku 7 (tujuh) hari kalender terhitung sejak tanggal pengambilan unit.</p>
+    <p>2. Garansi hanya berlaku untuk kerusakan yang sama dengan yang tercantum pada invoice ini.</p>
+    <p>3. Garansi TIDAK berlaku untuk: kerusakan akibat jatuh, terkena air/cairan, atau kelalaian pengguna.</p>
+    <p>4. Klaim garansi wajib menyertakan invoice asli ini.</p>
+    <p>5. Simpan invoice ini sebagai bukti pembayaran dan klaim garansi.</p>
+  </div>
+</div>
+
+<div class="print-bar">
+  <button class="print-btn" onclick="downloadPDF()">Download PDF</button>
+  <button class="print-btn" onclick="window.print()" style="background:#64748b;margin-left:10px">Print</button>
+</div>
+<script>
+function downloadPDF() {
+  var el = document.querySelector('.invoice');
+  var btns = document.querySelector('.print-bar');
+  if(btns) btns.style.display = 'none';
+  var opt = {
+    margin: [10, 10, 10, 10],
+    filename: 'Invoice-Servis-<?= data.sn ?>.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(el).save().then(function() {
+    if(btns) btns.style.display = 'block';
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice <?= data.invoiceNo ?></title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; background:#fff; color:#1e293b; padding:0; }
+  @media print {
+    @page { size:A4; margin:12mm; marks:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .print-bar { display:none; }
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+  @media screen { body { padding:20px; } }
+</style>
+</head>
+<body>
+<div style="background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;max-width:700px;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif">
+
+  <!-- Header -->
+  <div style="background:<?= data.isTradeIn ? '#7c3aed' : '#0f172a' ?>;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:20px;font-weight:700">FANBOY <?= data.location ? data.location : 'STORE' ?></div>
+      <div style="font-size:11px;opacity:.7">Premium Used Device</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:24px;font-weight:700;letter-spacing:2px"><?= data.isTradeIn ? 'TRADE-IN' : 'INVOICE' ?></div>
+      <div style="font-size:12px;font-weight:600"><?= data.invoiceNo ?></div>
+    </div>
+  </div>
+
+  <!-- Buyer -->
+  <div style="display:flex;justify-content:space-between;padding:16px 24px">
+    <div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:6px">Bill To:</div>
+      <div style="font-size:15px;font-weight:600"><?= data.buyer ?></div>
+      <div style="font-size:12px;color:#64748b"><?= data.location ? data.location : '-' ?></div>
+    </div>
+    <div style="background:#f8fafc;padding:10px 14px;border-radius:6px">
+      <div style="font-size:12px;color:#64748b">Invoice: <b><?= data.invoiceNo ?></b></div>
+      <div style="font-size:12px;color:#64748b">Tanggal: <b><?= data.date ?></b></div>
+      <div style="font-size:12px;color:#64748b">Sales: <b><?= data.sales || '-' ?></b></div>
+      <div style="font-size:12px;color:#64748b">Handler: <b><?= data.handler || '-' ?></b></div>
+    </div>
+  </div>
+
+  <? if (data.isTradeIn && data.tukarItems && data.tukarItems.length > 0) { ?>
+  <!-- TRADE-IN INVOICE -->
+  <!-- BELI Section -->
+  <div style="background:#f0fdf4;padding:10px 24px"><b style="color:#166534">📦 BARANG DIBELI</b></div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#0f172a;color:#fff">
+      <th style="padding:10px 24px;text-align:left">DESKRIPSI</th>
+      <th style="padding:10px 16px;text-align:right;width:120px">HARGA</th>
+    </tr>
+    <tr style="border-bottom:1px solid #e2e8f0">
+      <td style="padding:12px 24px">
+        <b><?= data.model || '-' ?></b><br>
+        <span style="color:#64748b;font-size:12px">SN: <?= data.sn ?> | <?= data.spec || '-' ?></span>
+      </td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700">Rp <?= data.harga ? data.harga.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></td>
+    </tr>
+  </table>
+  <div style="background:#f0fdf4;padding:10px 24px;display:flex;justify-content:space-between;border-top:2px solid #166534">
+    <span style="font-weight:600;color:#166534">Subtotal Beli</span>
+    <span style="font-weight:700;color:#166534">Rp <?= data.harga ? data.harga.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></span>
+  </div>
+
+  <!-- TUKAR Section -->
+  <div style="background:#fef2f2;padding:10px 24px;margin-top:8px"><b style="color:#991b1b">🔄 UNIT DITUKAR (Trade-In)</b></div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#7c3aed;color:#fff">
+      <th style="padding:10px 24px;text-align:left">DESKRIPSI</th>
+      <th style="padding:10px 16px;text-align:right;width:120px">NILAI</th>
+    </tr>
+    <? for (var t = 0; t < data.tukarItems.length; t++) { ?>
+    <tr style="border-bottom:1px solid #e2e8f0">
+      <td style="padding:12px 24px">
+        <b><?= data.tukarItems[t].model || 'Trade-In Unit' ?></b><br>
+        <span style="color:#64748b;font-size:12px">SN: <?= data.tukarItems[t].sn ?> | <?= data.tukarItems[t].spec || '-' ?></span>
+      </td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700;color:#7c3aed">- Rp <?= data.tukarItems[t].price ? data.tukarItems[t].price.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></td>
+    </tr>
+    <? } ?>
+  </table>
+  <div style="background:#fef2f2;padding:10px 24px;display:flex;justify-content:space-between;border-top:2px solid #991b1b">
+    <span style="font-weight:600;color:#991b1b">Subtotal Tukar</span>
+    <span style="font-weight:700;color:#991b1b">- Rp <?= data.totalTukar ? data.totalTukar.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></span>
+  </div>
+
+  <!-- TOTAL BAYAR -->
+  <div style="background:#0f172a;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <span style="font-size:16px;font-weight:600">💰 TOTAL BAYAR</span>
+    <span style="font-size:22px;font-weight:700">Rp <?= data.totalBayar ? data.totalBayar.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></span>
+  </div>
+
+  <? } else { ?>
+  <!-- REGULAR INVOICE -->
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <tr style="background:#0f172a;color:#fff">
+      <th style="padding:10px 24px;text-align:left">DESKRIPSI</th>
+      <th style="padding:10px 16px;text-align:right;width:120px">HARGA</th>
+    </tr>
+    <tr style="border-bottom:1px solid #e2e8f0">
+      <td style="padding:12px 24px">
+        <b><?= data.model || '-' ?></b><br>
+        <span style="color:#64748b;font-size:12px">SN: <?= data.sn ?> | <?= data.spec || '-' ?></span>
+      </td>
+      <td style="padding:12px 16px;text-align:right;font-weight:700">Rp <?= data.harga ? data.harga.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></td>
+    </tr>
+  </table>
+  <div style="background:#0f172a;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:16px;font-weight:600">TOTAL (1 item)</span>
+    <span style="font-size:22px;font-weight:700">Rp <?= data.harga ? data.harga.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') : '0' ?></span>
+  </div>
+  <? } ?>
+
+  <!-- DP Section -->
+  <? if (data.dpAmount > 0) { ?>
+  <div style="background:#eff6ff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:14px;font-weight:600;color:#1e40af">💰 DP (Down Payment)</span>
+    <span style="font-size:16px;font-weight:700;color:#2563eb">Rp <?= data.dpAmount.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') ?></span>
+  </div>
+  <div style="background:#fef3c7;padding:12px 24px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:14px;font-weight:600;color:#92400e">SISA BAYAR</span>
+    <span style="font-size:18px;font-weight:700;color:#b45309">Rp <?= data.sisaBayar.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') ?></span>
+  </div>
+  <? } ?>
+
+  <!-- Payment Badge -->
+  <div style="text-align:center;padding:12px;background:<?= data.isTradeIn ? '#ede9fe' : (data.dpAmount > 0 ? '#dbeafe' : '#d1fae5') ?>;color:<?= data.isTradeIn ? '#7c3aed' : (data.dpAmount > 0 ? '#2563eb' : '#16a34a') ?>;font-weight:700;font-size:15px">
+    <?= data.isTradeIn ? '🔄 TRADE-IN' : (data.dpAmount > 0 ? '💰 DP' : '💳 ' + (data.payment || 'LUNAS')) ?>
+  </div>
+
+  <!-- Catatan -->
+  <? if (data.catatan) { ?>
+  <div style="padding:12px 24px;background:#fffbeb;border-top:1px solid #fde68a">
+    <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:4px">📝 CATATAN:</div>
+    <div style="font-size:12px;color:#78350f;white-space:pre-wrap"><?= data.catatan ?></div>
+  </div>
+  <? } ?>
+
+  <!-- Footer Info -->
+  <div style="padding:12px 24px;font-size:11px;color:#64748b">
+    Sales: <?= data.sales || '-' ?> | Handler: <?= data.handler || '-' ?> | Lokasi: <?= data.location || '-' ?>
+  </div>
+
+  <!-- Footer Terms -->
+  <div style="background:#f8fafc;padding:12px 24px;font-size:10px;color:#94a3b8">
+    <b>TERIMA KASIH ATAS PEMBELIAN ANDA</b><br>
+    1. Garansi berlaku 14 hari mesin & fungsi lainnya, kecuali kerusakan LCD tidak ada garansi.<br>
+    2. Klaim garansi wajib dibawa langsung ke store dengan kartu garansi & invoice ini.<br>
+    3. Fisik (benturan/goresan) dan kerusakan akibat kelalaian pengguna tidak digaransi.<br>
+    4. Barang yang sudah dibeli tidak dapat dikembalikan dengan alasan apapun.<br>
+    5. Proses klaim garansi kerusakan membutuhkan waktu 14 hari kerja.
+  </div>
+
+</div>
+
+<div class="print-bar" style="text-align:center;padding:20px">
+  <button onclick="downloadPDF()" style="background:#0f172a;color:#fff;border:none;padding:14px 40px;font-size:15px;font-weight:600;border-radius:8px;cursor:pointer">Download PDF</button>
+  <button onclick="window.print()" style="background:#64748b;color:#fff;border:none;padding:14px 40px;font-size:15px;font-weight:600;border-radius:8px;cursor:pointer;margin-left:10px">Print</button>
+</div>
+<script>
+function downloadPDF() {
+  var el = document.querySelector('div[style*="border:2px"]');
+  var btns = document.querySelector('.print-bar');
+  if(btns) btns.style.display = 'none';
+  var opt = {
+    margin: [10, 10, 10, 10],
+    filename: 'Invoice-<?= data.invoiceNo ?>.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(el).save().then(function() {
+    if(btns) btns.style.display = 'block';
+  });
+}
+</script>
+</body>
+</html>
