@@ -1918,6 +1918,9 @@
       if(!$('jSales').value) { alert('Pilih Sales'); $('jSales').focus(); return; }
       if(!$('jHandler').value) { alert('Pilih Handler'); $('jHandler').focus(); return; }
       var dpVal = Number(($('jDP').value||'').replace(/[^0-9]/g,'')) || 0;
+      var catatanVal = $('jCatatan').value.trim();
+      // Filter: buang catatan yang hanya angka (harga yang salah input)
+      if (/^\d[\d.,\s]*$/.test(catatanVal.replace(/rp\s*/gi, '').trim())) catatanVal = '';
       var data = {
         items: jualCart.map(function(r){ return {sn:r.sn, harga:r.dealPrice||r.hargaJual||0}; }),
         buyer: $('jBuyer').value.trim(),
@@ -1926,7 +1929,7 @@
         sales: $('jSales').value.trim(),
         handler: $('jHandler').value.trim(),
         dpAmount: dpVal,
-        catatan: $('jCatatan').value.trim(),
+        catatan: catatanVal,
         staff: currentUser ? (currentUser.name || '') : ''
       };
       

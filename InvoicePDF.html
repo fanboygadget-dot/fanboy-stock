@@ -118,7 +118,7 @@
   <? } ?>
 
   <!-- DP Section -->
-  <? if (data.dpAmount > 0) { ?>
+  <? if (data.payment && data.payment.toUpperCase() === 'DP') { ?>
   <div style="background:#eff6ff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center">
     <span style="font-size:14px;font-weight:600;color:#1e40af">💰 DP (Down Payment)</span>
     <span style="font-size:16px;font-weight:700;color:#2563eb">Rp <?= data.dpAmount.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.') ?></span>
@@ -130,8 +130,8 @@
   <? } ?>
 
   <!-- Payment Badge -->
-  <div style="text-align:center;padding:12px;background:<?= data.isTradeIn ? '#ede9fe' : (data.dpAmount > 0 ? '#dbeafe' : '#d1fae5') ?>;color:<?= data.isTradeIn ? '#7c3aed' : (data.dpAmount > 0 ? '#2563eb' : '#16a34a') ?>;font-weight:700;font-size:15px">
-    <?= data.isTradeIn ? '🔄 TRADE-IN' : (data.dpAmount > 0 ? '💰 DP' : '💳 ' + (data.payment || 'LUNAS')) ?>
+  <div style="text-align:center;padding:12px;background:<?= data.isTradeIn ? '#ede9fe' : ((data.payment && data.payment.toUpperCase() === 'DP') ? '#dbeafe' : '#d1fae5') ?>;color:<?= data.isTradeIn ? '#7c3aed' : ((data.payment && data.payment.toUpperCase() === 'DP') ? '#2563eb' : '#16a34a') ?>;font-weight:700;font-size:15px">
+    <?= data.isTradeIn ? '🔄 TRADE-IN' : ((data.payment && data.payment.toUpperCase() === 'DP') ? '💰 DP' : '💳 ' + (data.payment || 'LUNAS')) ?>
   </div>
 
   <!-- Catatan -->

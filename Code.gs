@@ -537,6 +537,8 @@ function createInvoice(data) {
     var dpAmount = Number(data.dpAmount) || 0;
     var sisaBayar = Math.max(0, harga - dpAmount);
     var catatan = data.catatan || '';
+    // Filter: buang catatan yang hanya angka (harga yang salah input)
+    if (/^\d[\d.,\s]*$/.test(catatan.replace(/rp\s*/gi, '').trim())) catatan = '';
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
     invSheet.appendRow([nextNo, sn, buyerHP, '', formatRupiah(harga), today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', formatRupiah(dpAmount), formatRupiah(sisaBayar), catatan]);
