@@ -621,7 +621,6 @@ function createInvoice(data) {
   }
   
   var tgResult = sendTelegramInvoice(nextNo, invItems, data.buyer||'', data);
-  sendClosingReport(nextNo, invItems, data);
   return {ok:true, invoiceNo:nextNo, items:resultItems, tradeIn:data.tradeIn||null, telegramSent:tgResult};
 }
 
@@ -636,7 +635,7 @@ function sendTelegramInvoice(invNo, invItems, buyer, data) {
     var itemLines = '';
     for (var i = 0; i < invItems.length; i++) {
       totalHarga += Number(invItems[i].harga) || 0;
-      itemLines += (i+1) + '. ' + invItems[i].model + ' (SN: ' + invItems[i].sn + ') — Rp ' + formatNumber(invItems[i].harga) + '\n';
+      itemLines += (i+1) + '. ' + invItems[i].model + ' (SN: ' + invItems[i].sn + ') — Rp ' + formatNumber(invItems[i].harga) + (invItems[i].lokasi ? ' [' + invItems[i].lokasi + ']' : '') + '\n';
     }
     var dpAmt = Number(data.dpAmount) || 0;
     var sisaAmt = Math.max(0, totalHarga - dpAmt);
@@ -649,35 +648,6 @@ function sendTelegramInvoice(invNo, invItems, buyer, data) {
     var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
     var resp = UrlFetchApp.fetch(url, {method:'post', contentType:'application/json', payload:JSON.stringify({chat_id:groupId, text:msg}), muteHttpExceptions:true});
     return JSON.parse(resp.getContentText()).ok === true;
-  } catch(e) { return false; }
-}
-
-// --- LAPOR CLOSING ---
-function sendClosingReport(invNo, invItems, data) {
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
-    var groupId = '-1002729631656';
-    if (!botToken) return false;
-    
-    for (var i = 0; i < invItems.length; i++) {
-      var item = invItems[i];
-      var unit = item.model + (item.spec ? ' | ' + item.spec : '');
-      var buyerInfo = (data.buyer || '-') + (data.hp ? ' / ' + data.hp : '');
-      var msg = '📢 LAPOR CLOSING\n\n' +
-        'LOKASI : ' + (item.lokasi || '-') + '\n' +
-        'SN : ' + item.sn + '\n' +
-        'UNIT : ' + unit + '\n' +
-        'HARGA : Rp ' + formatNumber(item.harga) + '\n' +
-        'SALES : ' + (data.sales || '-') + '\n' +
-        'HANDLE : ' + (data.handler || '-') + '\n' +
-        'PEMBAYARAN : ' + (data.payment || 'CASH') + '\n' +
-        'BUYER : ' + buyerInfo;
-      
-      var url = 'https://api.telegram.org/bot' + botToken + '/sendMessage';
-      UrlFetchApp.fetch(url, {method:'post', contentType:'application/json', payload:JSON.stringify({chat_id:groupId, text:msg}), muteHttpExceptions:true});
-    }
-    return true;
   } catch(e) { return false; }
 }
 
