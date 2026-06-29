@@ -216,30 +216,37 @@ function searchAll(q) {
 
 // --- ADD STOCK ---
 function addStock(d) {
-  var ss = SpreadsheetApp.openById(SS_ID);
-  var sheet = ss.getSheetByName('Inventaris_Laptop');
-  var rows = sheet.getDataRange().getValues();
-  // Check duplicate SN
-  for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]).toUpperCase() === d.sn.toUpperCase()) {
-      return {ok: false, msg: 'SN sudah ada: ' + d.sn};
+  try {
+    var sn = String(d.sn || '').toUpperCase().trim();
+    if (!sn) return {ok: false, msg: 'SN wajib diisi'};
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var sheet = ss.getSheetByName('Inventaris_Laptop');
+    if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+    var rows = sheet.getDataRange().getValues();
+    // Check duplicate SN
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]).toUpperCase().trim() === sn) {
+        return {ok: false, msg: 'SN sudah ada: ' + sn};
+      }
     }
+    var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
+    var hargaBeli = parseHarga(d.hargaBeli);
+    var hargaJual = parseHarga(d.hargaJual);
+    var staff = getCurrentStaff(d.staff);
+    // Kolom: 0=ID_Laptop 1=Merk_Model 2=Spesifikasi 3=Kondisi 4=Harga_Beli
+    // 5=Biaya_Servis 6=Total_Modal 7=Harga_Jual 8=Status
+    // 9=Tanggal_Masuk 10=Suplier 11=Lokasi_Saat_Ini 12=history_lokasi
+    // 13=Staff_input 14=Staff_handle 15=Foto_Barang
+    sheet.appendRow([
+      sn, d.model||'', d.spec||'', d.kondisi||'',
+      formatRupiah(hargaBeli), 0, formatRupiah(hargaBeli), formatRupiah(hargaJual),
+      'Available', today, d.suplier||'', (d.lokasi||'JOGJA').toUpperCase(),
+      '', staff, '', ''
+    ]);
+    return {ok: true, msg: 'Berhasil ditambahkan: ' + sn + ' (' + (d.model||'') + ')'};
+  } catch(e) {
+    return {ok: false, msg: e.toString()};
   }
-  var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
-  var hargaBeli = parseHarga(d.hargaBeli);
-  var hargaJual = parseHarga(d.hargaJual);
-  var staff = getCurrentStaff(d.staff);
-  // Kolom: 0=ID_Laptop 1=Merk_Model 2=Spesifikasi 3=Kondisi 4=Harga_Beli
-  // 5=Biaya_Servis 6=Total_Modal 7=Harga_Jual 8=Status
-  // 9=Tanggal_Masuk 10=Suplier 11=Lokasi_Saat_Ini 12=history_lokasi
-  // 13=Staff_input 14=Staff_handle 15=Foto_Barang
-  sheet.appendRow([
-    d.sn, d.model, d.spec||'', d.kondisi||'',
-    formatRupiah(hargaBeli), 0, formatRupiah(hargaBeli), formatRupiah(hargaJual),
-    'Available', today, d.suplier||'', d.lokasi.toUpperCase(),
-    '', staff, '', ''
-  ]);
-  return {ok: true, msg: 'Berhasil ditambahkan: ' + d.sn + ' (' + d.model + ')'};
 }
 
 // --- BATCH ADD STOCK ---
@@ -556,7 +563,39 @@ function createInvoice(data) {
   // Handle Trade-In
   if (data.tradeIn) {
     var ti = data.tradeIn;
-    var tiInvNo = 'TRD-' + String(invData.length + 1).padStart(4, '0');
+    // Find max TRD number to prevent duplicates (same logic as INV)
+    var maxTrd = 0;
+    for (var t = 1; t < invData.length; t++) {
+      var trdInv = String(invData[t][0] || '');
+      var trdMatch = trdInv.match(/TRD-(\d+)/);
+      if (trdMatch) {
+        var tn = parseInt(trdMatch[1], 10);
+        if (tn > maxTrd) maxTrd = tn;
+      }
+    }
+    var tiInvNo = 'TRD-' + String(maxTrd + 1).padStart(4, '0');
+    
+    // Check for duplicate trade-in SN in invoice log
+    var tiSnUpper = ti.sn.toUpperCase().trim();
+    var tiDuplicate = false;
+    for (var d = 1; d < invData.length; d++) {
+      if (String(invData[d][1] || '').toUpperCase().trim() === tiSnUpper) {
+        tiDuplicate = true;
+        break;
+      }
+    }
+    // Also check if SN already exists in inventory
+    if (!tiDuplicate) {
+      for (var k = 1; k < rows.length; k++) {
+        if (String(rows[k][0] || '').toUpperCase().trim() === tiSnUpper) {
+          tiDuplicate = true;
+          break;
+        }
+      }
+    }
+    if (tiDuplicate) {
+      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di sistem'};
+    }
     
     // Add trade-in device to inventory
     var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
@@ -699,6 +738,27 @@ function getSalesHistory() {
       catatan = String(r[14] || '');
     }
     
+    // Parse trade-in items from catatan
+    var tukarItems = [];
+    var isTradeIn = status.toUpperCase().indexOf('TRADE-IN') >= 0;
+    if (isTradeIn && catatan.indexOf('TUKAR:') === 0) {
+      var body = catatan.substring(6);
+      var parts = body.split(';');
+      for (var t = 0; t < parts.length; t++) {
+        var p = parts[t].trim();
+        if (p.indexOf('total=') === 0 || p.indexOf('bayar=') === 0) continue;
+        var fp = p.split('|');
+        if (fp.length >= 4) {
+          tukarItems.push({
+            sn: fp[0] || '',
+            model: fp[1] || '',
+            spec: fp[2] || '',
+            price: parseHarga(fp[3]) || 0
+          });
+        }
+      }
+    }
+
     result.push({
       tanggal: String(tanggal || ''),
       invNo: String(r[0] || ''),
@@ -712,7 +772,9 @@ function getSalesHistory() {
       status: status,
       dpAmount: dpAmount,
       sisaBayar: sisaBayar,
-      catatan: catatan,
+      catatan: (catatan.indexOf('TUKAR:') === 0) ? '' : catatan,
+      isTradeIn: isTradeIn,
+      tukarItems: tukarItems,
       rowIndex: i + 1
     });
   }
@@ -997,24 +1059,27 @@ function getInvoiceData(invoiceNo, snParam) {
       var catatanRaw = String(invData[i][14] || '');
       if (isTradeIn && catatanRaw.indexOf('TUKAR:') === 0) {
         var tukarStr = catatanRaw.substring(6); // Remove 'TUKAR:'
-        var parts = tukarStr.split('|');
-        var itemsStr = parts[0] || '';
-        var items = itemsStr.split(';');
-        for (var k = 0; k < items.length; k++) {
-          var itemParts = items[k].split('|');
-          if (itemParts.length >= 4) {
-            tukarItems.push({
-              sn: itemParts[0],
-              model: itemParts[1],
-              spec: itemParts[2],
-              price: parseHarga(itemParts[3])
-            });
+        // Split by ';' first to get items and metadata
+        var sections = tukarStr.split(';');
+        // Parse items (everything before the last section which contains total/bayar)
+        for (var k = 0; k < sections.length; k++) {
+          var section = sections[k];
+          if (section.indexOf('total=') === 0) {
+            totalTukar = parseHarga(section.substring(6));
+          } else if (section.indexOf('bayar=') === 0) {
+            totalBayar = parseHarga(section.substring(6));
+          } else {
+            // This is an item: SN|model|spec|price
+            var itemParts = section.split('|');
+            if (itemParts.length >= 4) {
+              tukarItems.push({
+                sn: itemParts[0],
+                model: itemParts[1],
+                spec: itemParts[2],
+                price: parseHarga(itemParts[3])
+              });
+            }
           }
-        }
-        // Parse total and bayar
-        for (var k = 1; k < parts.length; k++) {
-          if (parts[k].indexOf('total=') === 0) totalTukar = parseHarga(parts[k].substring(6));
-          if (parts[k].indexOf('bayar=') === 0) totalBayar = parseHarga(parts[k].substring(6));
         }
       }
       
@@ -1057,7 +1122,7 @@ function getInvoiceData(invoiceNo, snParam) {
         location: loc,
         dpAmount: parseHarga(invData[i][12] || '0'),
         sisaBayar: parseHarga(invData[i][13] || '0'),
-        catatan: catatanRaw,
+        catatan: (catatanRaw.indexOf('TUKAR:') === 0) ? '' : catatanRaw,
         isTradeIn: isTradeIn,
         tukarItems: tukarItems,
         totalTukar: totalTukar,
@@ -1081,50 +1146,6 @@ function openInvoicePDF(invoiceNo) {
   var html = tpl.evaluate().setTitle('Invoice ' + invoiceNo).setWidth(800).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, 'Invoice ' + invoiceNo);
   return {ok: true};
-}
-
-// --- ADD STOCK (single) ---
-function addStock(data) {
-  try {
-    var ss = SpreadsheetApp.openById(SS_ID);
-    var sheet = ss.getSheetByName('Inventaris_Laptop');
-    if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
-    var sn = String(data.sn || '').toUpperCase().trim();
-    if (!sn) return {ok: false, msg: 'SN wajib diisi'};
-    // Duplicate check
-    var rows = sheet.getDataRange().getValues();
-    for (var i = 1; i < rows.length; i++) {
-      if (String(rows[i][0]).toUpperCase().trim() === sn) {
-        return {ok: false, msg: 'SN sudah ada: ' + sn};
-      }
-    }
-    var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
-    var harga = String(data.hargaJual || data.harga || '0').replace(/[^0-9]/g, '');
-    var modal = String(data.hargaBeli || data.modal || '0').replace(/[^0-9]/g, '');
-    var staff = getCurrentStaff(data.staff);
-    // 16 columns: A-P
-    sheet.appendRow([
-      sn,                           // A (0) SN
-      data.model || '',             // B (1) Model
-      data.spec || '',              // C (2) Spec
-      data.kondisi || '',           // D (3) Kondisi
-      modal,                        // E (4) Harga_Beli
-      '0',                          // F (5) Biaya_Servis
-      modal,                        // G (6) Total_Modal
-      harga,                        // H (7) Harga_Jual
-      'Available',                  // I (8) Status
-      today,                        // J (9) Tanggal_Masuk
-      data.suplier || '',           // K (10) Suplier
-      (data.lokasi || 'JOGJA').toUpperCase(), // L (11) Lokasi
-      '',                           // M (12) history_lokasi
-      staff,                        // N (13) Staff_input
-      '',                           // O (14) Staff_handle
-      ''                            // P (15) Foto_Barang
-    ]);
-    return {ok: true, msg: 'Stok ditambahkan: ' + sn};
-  } catch(e) {
-    return {ok: false, msg: e.toString()};
-  }
 }
 
 // --- ADD STOCK BULK ---
@@ -1421,7 +1442,11 @@ function _unmapServisStatus(s) {
 // --- getStockData(loc?) ---
 function getStockData(loc) {
   var ss = SpreadsheetApp.openById(SS_ID);
-  var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
+  var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getDisplayValues();
+  // Pad rows
+  var maxCols = 0;
+  for (var i = 0; i < data.length; i++) { if (data[i].length > maxCols) maxCols = data[i].length; }
+  for (var i = 0; i < data.length; i++) { while (data[i].length < maxCols) data[i].push(''); }
   var items = [];
   for (var i = 1; i < data.length; i++) {
     var rLoc = String(data[i][11]||'').toUpperCase().trim();
@@ -1436,7 +1461,9 @@ function getStockData(loc) {
       hargaBeli: parseHarga(data[i][4]),
       hargaJual: parseHarga(data[i][7]),
       lokasi: rLoc,
-      status: st
+      status: st,
+      tanggalMasuk: String(data[i][9]||''),
+      rowIndex: i + 1
     });
   }
   return items;

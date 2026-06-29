@@ -330,6 +330,10 @@
               <option value="problem">Problems</option>
               <option value="Sold">Sold</option>
             </select>
+            <select class="filter-select" id="sortFilter" onchange="renderStockTable()">
+              <option value="newest">Terbaru</option>
+              <option value="oldest">Terlama</option>
+            </select>
           </div>
           <div class="table-wrap" id="stockTable"></div>
         </div>
@@ -902,6 +906,23 @@
     function $(id) { return document.getElementById(id); }
     function esc(s) { if(!s)return''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
     function fmtNum(n) { return String(n).replace(/(\d)(?=(\d{3})+(?!\d))/g,'$1.'); }
+    function parseDateSort(s) {
+      if (!s) return 0;
+      // Try dd/MM/yyyy or dd/MM/yyyy HH:mm
+      var parts = String(s).trim().split(' ')[0].split('/');
+      if (parts.length === 3) {
+        var d = parseInt(parts[0],10), m = parseInt(parts[1],10)-1, y = parseInt(parts[2],10);
+        return new Date(y, m, d).getTime();
+      }
+      // Try yyyy-MM-dd
+      var parts2 = String(s).trim().split(' ')[0].split('-');
+      if (parts2.length === 3) {
+        return new Date(parseInt(parts2[0],10), parseInt(parts2[1],10)-1, parseInt(parts2[2],10)).getTime();
+      }
+      // Try Date parse fallback
+      var t = new Date(s).getTime();
+      return isNaN(t) ? 0 : t;
+    }
     function toggleSidebar() {
       $('sidebar').classList.toggle('open');
       $('sidebarOverlay').classList.toggle('open');
@@ -1006,11 +1027,18 @@
     function renderStockTable() {
       var q = ($('searchBox')?$('searchBox').value:'').toUpperCase();
       var sf = $('statusFilter')?$('statusFilter').value:'';
+      var sortF = $('sortFilter')?$('sortFilter').value:'newest';
       var isAdmin = currentUser && currentUser.role === 'admin';
       var filtered = allStock.filter(function(r) {
         var matchQ = !q || (r.sn||'').toUpperCase().indexOf(q)>-1 || (r.model||'').toUpperCase().indexOf(q)>-1 || (r.spekSingkat||'').toUpperCase().indexOf(q)>-1;
         var matchS = !sf || r.status===sf;
         return matchQ && matchS;
+      });
+      // Sort by tanggalMasuk
+      filtered.sort(function(a, b) {
+        var da = parseDateSort(a.tanggalMasuk);
+        var db = parseDateSort(b.tanggalMasuk);
+        return sortF === 'newest' ? db - da : da - db;
       });
       if(!filtered.length) { $('stockTable').innerHTML='<p style="color:var(--gray);padding:20px">Tidak ada data.</p>'; return; }
       
@@ -1805,6 +1833,7 @@
     // PENJUALAN - CART SYSTEM
     var jualCart = [];
     var lastInvoiceHTML = '';
+    var _jualSubmitting = false;
     
     function setupJualAutocomplete() {
       var input = $('jSn');
@@ -1898,6 +1927,7 @@
     
     function submitJual(e) {
       e.preventDefault();
+      if(_jualSubmitting) return;
       if(!jualCart.length) { alert('Tambahkan laptop ke keranjang dulu'); return; }
       
       var isSplit = $('jSplitPay').checked;
@@ -1951,7 +1981,14 @@
         };
       }
       
+      // Lock & disable button to prevent double-submit
+      _jualSubmitting = true;
+      var submitBtn = $('jualForm').querySelector('button[type=submit]');
+      if(submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+      
       google.script.run.withSuccessHandler(function(r) {
+        _jualSubmitting = false;
+        if(submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-check"></i> Proses Penjualan'; }
         if(r.ok) {
           showJualInvoice(r);
           google.script.run.withSuccessHandler(function(d){ allStock = d || []; }).getStockData();
@@ -1959,6 +1996,11 @@
           var el = $('jualResult');
           el.className='msg-error'; el.style.display='block'; el.textContent='❌ '+r.msg;
         }
+      }).withFailureHandler(function(err) {
+        _jualSubmitting = false;
+        if(submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-check"></i> Proses Penjualan'; }
+        var el = $('jualResult');
+        el.className='msg-error'; el.style.display='block'; el.textContent='❌ Error: ' + (err.message || err);
       }).createInvoice(data);
     }
     
@@ -2139,12 +2181,30 @@
         }
         h+='<tr>';
         h+='<td>'+esc(r.tanggal)+'</td>';
-        h+='<td><b>'+esc(r.invNo)+'</b>'+(r.status==='DP'?' <span style="background:#dbeafe;color:#2563eb;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">DP</span>':'')+'</td>';
+        h+='<td><b>'+esc(r.invNo)+'</b>'+(r.status==='DP'?' <span style="background:#dbeafe;color:#2563eb;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">DP</span>':'')+(r.isTradeIn?' <span style="background:#ede9fe;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">🔄 TRADE-IN</span>':'')+'</td>';
         h+='<td>'+esc(r.sn)+'</td>';
-        h+='<td>'+esc(r.model)+'</td>';
+        // Model column: show main item + trade-in items
+        var modelHtml = esc(r.model);
+        if (r.isTradeIn && r.tukarItems && r.tukarItems.length > 0) {
+          modelHtml += '<br><span style="color:#7c3aed;font-size:11px">🔄 Tukar: ';
+          var tukarParts = [];
+          r.tukarItems.forEach(function(ti) {
+            tukarParts.push(esc(ti.model)+' ('+esc(ti.sn)+')');
+          });
+          modelHtml += tukarParts.join(', ') + '</span>';
+        }
+        h+='<td>'+modelHtml+'</td>';
         h+='<td>'+esc(buyerName)+'</td>';
         h+='<td style="font-size:12px;color:var(--gray)">'+esc(buyerHP||'-')+'</td>';
-        h+='<td style="text-align:right;font-weight:600" id="harga_'+i+'">Rp '+fmtNum(r.harga)+'</td>';
+        // Harga column: show harga jual + trade-in value + total bayar
+        var hargaHtml = 'Rp '+fmtNum(r.harga);
+        if (r.isTradeIn && r.tukarItems && r.tukarItems.length > 0) {
+          var totalTukar = 0;
+          r.tukarItems.forEach(function(ti) { totalTukar += ti.price; });
+          hargaHtml += '<br><span style="color:#dc2626;font-size:11px">- Rp '+fmtNum(totalTukar)+' (tukar)</span>';
+          hargaHtml += '<br><span style="color:#16a34a;font-size:12px;font-weight:700">= Rp '+fmtNum(r.sisaBayar || (r.harga - totalTukar))+' bayar</span>';
+        }
+        h+='<td style="text-align:right;font-weight:600" id="harga_'+i+'">'+hargaHtml+'</td>';
         h+='<td style="text-align:right;color:#2563eb;font-weight:600">'+(r.dpAmount?'Rp '+fmtNum(r.dpAmount):'-')+'</td>';
         h+='<td style="text-align:right;color:#b45309;font-weight:600">'+(r.sisaBayar?'Rp '+fmtNum(r.sisaBayar):'-')+'</td>';
         h+='<td>'+esc(r.sales)+'</td>';
@@ -2244,7 +2304,7 @@
     
     function downloadRiwayatInvoice(idx) {
       var r = riwayatData[idx];
-      var url = 'https://script.google.com/macros/s/AKfycbwyVmQ3S2zV9qRuEelTHcmrE5eQ4jTuUegxSAZ2MimZh5A2aiZP0HbVlrAHvZ9YB16j/exec?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||'');
+      var url = 'https://script.google.com/macros/s/AKfycbwMA8G7msv4Ne3-Zt0PG5IVdC3_pVbii6BkG2p72VETU9yjNH4YuZTw57BwoqCcQI9F/exec?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||'');
       window.open(url,'_blank');
     }
     
