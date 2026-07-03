@@ -1994,7 +1994,17 @@
           google.script.run.withSuccessHandler(function(d){ allStock = d || []; }).getStockData();
         } else {
           var el = $('jualResult');
-          el.className='msg-error'; el.style.display='block'; el.textContent='❌ '+r.msg;
+          el.className='msg-error'; el.style.display='block';
+          var detailHtml = '❌ '+r.msg;
+          if(r.items && r.items.length) {
+            detailHtml += '<div style="margin-top:8px;font-size:12px;text-align:left">';
+            r.items.forEach(function(it){
+              var icon = it.ok ? '✅' : '❌';
+              detailHtml += '<div>'+icon+' <b>'+esc(it.sn)+'</b>: '+esc(it.msg)+'</div>';
+            });
+            detailHtml += '</div>';
+          }
+          el.innerHTML = detailHtml;
         }
       }).withFailureHandler(function(err) {
         _jualSubmitting = false;
@@ -2304,7 +2314,7 @@
     
     function downloadRiwayatInvoice(idx) {
       var r = riwayatData[idx];
-      var url = 'https://script.google.com/macros/s/AKfycbwMA8G7msv4Ne3-Zt0PG5IVdC3_pVbii6BkG2p72VETU9yjNH4YuZTw57BwoqCcQI9F/exec?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||'');
+      var url = 'https://script.google.com/macros/s/AKfycbyv9D6DhvDHGQzdy9A1wH86WUc1SWmfrtqqWhPA1IJ0Zx1q72F7bnCFmf8phBd3EHrF/exec?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||'');
       window.open(url,'_blank');
     }
     

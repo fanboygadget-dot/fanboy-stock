@@ -239,7 +239,7 @@ function addStock(d) {
     // 13=Staff_input 14=Staff_handle 15=Foto_Barang
     sheet.appendRow([
       sn, d.model||'', d.spec||'', d.kondisi||'',
-      formatRupiah(hargaBeli), 0, formatRupiah(hargaBeli), formatRupiah(hargaJual),
+      hargaBeli, 0, hargaBeli, hargaJual,
       'Available', today, d.suplier||'', (d.lokasi||'JOGJA').toUpperCase(),
       '', staff, '', ''
     ]);
@@ -525,18 +525,13 @@ function createInvoice(data) {
       }
     }
     
-    if (!item) { resultItems.push({sn:sn, ok:false, msg:'SN tidak ditemukan'}); continue; }
-    if (item.status !== 'Available') { resultItems.push({sn:sn, ok:false, msg:'Status: '+item.status}); continue; }
+    if (!item) { resultItems.push({sn:sn, ok:false, msg:'SN tidak ditemukan di inventory'}); continue; }
+    if (item.status !== 'Available') { resultItems.push({sn:sn, ok:false, msg:'Status: '+item.status+' (bukan Available)'}); continue; }
     
-    // Check for duplicate SN in invoice log
-    var snUpper = sn.toUpperCase().trim();
-    for (var d = 1; d < invData.length; d++) {
-      if (String(invData[d][1] || '').toUpperCase().trim() === snUpper) {
-        resultItems.push({sn:sn, ok:false, msg:'SN sudah ada di invoice: ' + String(invData[d][0] || '')}); 
-        sn = null; break;
-      }
-    }
-    if (!sn) continue;
+    // NOTE: Cek duplikat SN di invoice log DIHAPUS.
+    // Alasan: jika barang pernah dijual lalu di-Retur, status kembali Available tapi
+    // SN masih ada di Log_Penjualan_Invoice. Cek status 'Available' sudah cukup mencegah
+    // double-sell (karena item Sold tidak akan muncul di pencarian).
     
     if (!harga) harga = item.harga;
     
@@ -552,6 +547,8 @@ function createInvoice(data) {
     // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
     var newRow = invSheet.getLastRow();
     invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    // Margin = Harga (E) - Modal/D (D)
+    invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
     
     // Update status to Sold
     stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
@@ -575,34 +572,27 @@ function createInvoice(data) {
     }
     var tiInvNo = 'TRD-' + String(maxTrd + 1).padStart(4, '0');
     
-    // Check for duplicate trade-in SN in invoice log
+    // Check if SN already exists in inventory (mencegah trade-in SN yang sudah ada)
     var tiSnUpper = ti.sn.toUpperCase().trim();
     var tiDuplicate = false;
-    for (var d = 1; d < invData.length; d++) {
-      if (String(invData[d][1] || '').toUpperCase().trim() === tiSnUpper) {
+    for (var k = 1; k < rows.length; k++) {
+      if (String(rows[k][0] || '').toUpperCase().trim() === tiSnUpper) {
         tiDuplicate = true;
         break;
       }
     }
-    // Also check if SN already exists in inventory
-    if (!tiDuplicate) {
-      for (var k = 1; k < rows.length; k++) {
-        if (String(rows[k][0] || '').toUpperCase().trim() === tiSnUpper) {
-          tiDuplicate = true;
-          break;
-        }
-      }
-    }
     if (tiDuplicate) {
-      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di sistem'};
+      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di inventory'};
     }
     
     // Add trade-in device to inventory
+    // Lokasi = lokasi barang yang dijual (dari cart), BUKAN 'TOKO FANBOY'
+    var tradeInLoc = (invItems.length > 0 && invItems[0].lokasi) ? invItems[0].lokasi : 'JOGJA';
     var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
     stSheet.appendRow([
       ti.sn, ti.model, ti.spec || '', ti.kondisi || 'Baik',
       ti.hargaBeli, 0, ti.hargaBeli, 0, 'Available',
-      now, 'Trade-In', data.tradeIn.location || 'TOKO FANBOY',
+      now, 'Trade-In', tradeInLoc,
       now + ' | Trade-In dari ' + (data.buyer||'Customer'),
       '', (data.handler||'Staff')
     ]);
@@ -1155,7 +1145,7 @@ function addStockBulk(text, defaultLokasi) {
       var lokasi = (parts[6] || defaultLokasi || 'JOGJA').toUpperCase().trim();
       var suplier = parts[7] || '';
       var staff = getCurrentStaff();
-      newRows.push([sn, model, spec, kondisi, formatRupiah(Number(modal)), '0', formatRupiah(Number(modal)), formatRupiah(Number(harga)), 'Available', today, suplier, lokasi, '', staff, '', '']);
+      newRows.push([sn, model, spec, kondisi, Number(modal)||0, 0, Number(modal)||0, Number(harga)||0, 'Available', today, suplier, lokasi, '', staff, '', '']);
       results.push('OK: ' + sn + ' | ' + model);
       okCount++;
     }
@@ -1331,12 +1321,25 @@ function createTradeIn(data) {
     var lookup = lookupTradeInSn(data.beliItems[0].sn);
     if (lookup.found) defaultLoc = lookup.lokasi;
   }
+  // Check existing SNs to prevent duplicates
+  var existingRows = stSheet.getDataRange().getValues();
+  var existingSNs = {};
+  for (var x = 1; x < existingRows.length; x++) {
+    existingSNs[String(existingRows[x][0]).toUpperCase().trim()] = true;
+  }
+  var tukarSkipped = [];
   for (var i = 0; i < data.tukarItems.length; i++) {
     var t = data.tukarItems[i];
+    var tukarSn = t.sn.toUpperCase().trim();
+    if (existingSNs[tukarSn]) {
+      tukarSkipped.push(tukarSn + ' (sudah ada di inventory)');
+      continue;
+    }
     stSheet.appendRow([
-      t.sn.toUpperCase(), t.model, t.spec || '-', '', Number(t.harga)||0, '', Number(t.harga)||0,
-      'Rp' + formatNumber(Number(t.harga)||0), 'Available', today, '', defaultLoc, '', '', '', ''
+      tukarSn, t.model, t.spec || '-', '', Number(t.harga)||0, 0, Number(t.harga)||0,
+      Number(t.harga)||0, 'Available', today, '', defaultLoc, '', '', '', ''
     ]);
+    existingSNs[tukarSn] = true; // prevent same-SN duplicate within one transaction
     tukarAdded.push(t.sn);
   }
 
@@ -1355,7 +1358,17 @@ function createTradeIn(data) {
     tukarNote = 'TUKAR:' + parts.join(';') + '|total=' + totalTukar + '|bayar=' + dibayar;
   }
   var invData = invSheet.getDataRange().getValues();
-  var invNo = 'TI-' + String(invData.length).padStart(4, '0');
+  // Find max number across TRD and INV prefixes (prevent reuse after deletion)
+  var maxTrdNum = 0;
+  for (var x = 1; x < invData.length; x++) {
+    var invStr = String(invData[x][0] || '');
+    var m = invStr.match(/(?:TRD|INV|TI)-(\d+)/);
+    if (m) {
+      var n = parseInt(m[1], 10);
+      if (n > maxTrdNum) maxTrdNum = n;
+    }
+  }
+  var invNo = 'TRD-' + String(maxTrdNum + 1).padStart(4, '0');
   var beliSnList = data.beliItems.map(function(b){return b.sn}).join(', ');
   // Log each BELI item as separate row: [invNo, SN, buyer, modal=VLOOKUP, harga, tanggal, sales, handler, status, ...]
   for (var b = 0; b < data.beliItems.length; b++) {
@@ -1366,7 +1379,7 @@ function createTradeIn(data) {
     invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
   }
 
-  return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded};
+  return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded, tukarSkipped: tukarSkipped || []};
 }
 
 // --- TELEGRAM SETUP ---
@@ -1783,4 +1796,31 @@ function deleteStaffAccount(username) {
   if (username.toUpperCase() === 'ADMIN') return {ok:false, msg:'Tidak bisa hapus admin utama'};
   props.deleteProperty(key);
   return {ok:true, msg:'Akun dihapus: ' + username};
+}
+
+// --- ONE-TIME FIX: Convert TEXT columns E/F/G/H to numbers ---
+function fixColumnFormats() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+  var data = sheet.getDataRange().getValues();
+  var fixed = 0;
+  // Columns to fix: E(4)=Harga_Beli, F(5)=Biaya_Servis, G(6)=Total_Modal, H(7)=Harga_Jual
+  var cols = [4, 5, 6, 7];
+  for (var i = 1; i < data.length; i++) {
+    for (var c = 0; c < cols.length; c++) {
+      var colIdx = cols[c];
+      var val = data[i][colIdx];
+      // If it's a string like "Rp 2.800.000" or "2800000", convert to number
+      if (typeof val === 'string' && val.trim() !== '') {
+        var num = Number(String(val).replace(/[^0-9]/g, '')) || 0;
+        sheet.getRange(i + 1, colIdx + 1).setValue(num);
+        fixed++;
+      } else if (typeof val === 'string' && val.trim() === '') {
+        sheet.getRange(i + 1, colIdx + 1).setValue(0);
+        fixed++;
+      }
+    }
+  }
+  return {ok: true, msg: 'Berhasil convert ' + fixed + ' cell dari TEXT ke ANGKA'};
 }
