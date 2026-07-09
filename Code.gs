@@ -560,6 +560,36 @@ function createInvoice(data) {
   // Handle Trade-In
   if (data.tradeIn) {
     var ti = data.tradeIn;
+    var tiSnUpper = ti.sn.toUpperCase().trim();
+
+    // CRITICAL: Check if SN already exists in INVENTORY (prevent adding duplicate to stock)
+    var tiDuplicate = false;
+    for (var k = 1; k < rows.length; k++) {
+      if (String(rows[k][0] || '').toUpperCase().trim() === tiSnUpper) {
+        tiDuplicate = true;
+        break;
+      }
+    }
+    if (tiDuplicate) {
+      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di inventory'};
+    }
+
+    // CRITICAL: Check if SN already has a TRD invoice in Log_Penjualan_Invoice (prevent 4x duplication)
+    var tiInvDuplicate = false;
+    var tiExistingInv = '';
+    for (var k = 1; k < invData.length; k++) {
+      var logSn = String(invData[k][1] || '').toUpperCase().trim();
+      var logInv = String(invData[k][0] || '');
+      if (logSn === tiSnUpper && logInv.indexOf('TRD-') === 0) {
+        tiInvDuplicate = true;
+        tiExistingInv = logInv;
+        break;
+      }
+    }
+    if (tiInvDuplicate) {
+      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di invoice: '+tiExistingInv};
+    }
+
     // Find max TRD number to prevent duplicates (same logic as INV)
     var maxTrd = 0;
     for (var t = 1; t < invData.length; t++) {
@@ -571,38 +601,25 @@ function createInvoice(data) {
       }
     }
     var tiInvNo = 'TRD-' + String(maxTrd + 1).padStart(4, '0');
-    
-    // Check if SN already exists in inventory (mencegah trade-in SN yang sudah ada)
-    var tiSnUpper = ti.sn.toUpperCase().trim();
-    var tiDuplicate = false;
-    for (var k = 1; k < rows.length; k++) {
-      if (String(rows[k][0] || '').toUpperCase().trim() === tiSnUpper) {
-        tiDuplicate = true;
-        break;
-      }
-    }
-    if (tiDuplicate) {
-      return {ok:false, msg:'SN Trade-In "'+ti.sn+'" sudah ada di inventory'};
-    }
-    
+
     // Add trade-in device to inventory
     // Lokasi = lokasi barang yang dijual (dari cart), BUKAN 'TOKO FANBOY'
     var tradeInLoc = (invItems.length > 0 && invItems[0].lokasi) ? invItems[0].lokasi : 'JOGJA';
     var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
     stSheet.appendRow([
       ti.sn, ti.model, ti.spec || '', ti.kondisi || 'Baik',
-      ti.hargaBeli, 0, ti.hargaBeli, 0, 'Available',
+      ti.hargaBeli, 0, ti.hargaBeli, ti.hargaBeli, 'Available',
       now, 'Trade-In', tradeInLoc,
       now + ' | Trade-In dari ' + (data.buyer||'Customer'),
       '', (data.handler||'Staff')
     ]);
-    
+
     // Log trade-in in invoice sheet
-    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', 'Rp 0', today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', '']);
+    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', formatRupiah(ti.hargaBeli), today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', '']);
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var tiRow = invSheet.getLastRow();
     invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
-    
+
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
   }
   
