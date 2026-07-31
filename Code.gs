@@ -1030,8 +1030,13 @@ function generatePenjualanExcel(startDate, endDate) {
       muteHttpExceptions: true
     });
 
-    // Delete temp spreadsheet
-    DriveApp.getFileById(tempSS.getId()).setTrashed(true);
+    // Delete temp spreadsheet via Drive API (avoids DriveApp permission)
+    var delUrl = 'https://www.googleapis.com/drive/v3/files/' + tempSS.getId() + '?supportsAllDrives=true';
+    UrlFetchApp.fetch(delUrl, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
 
     if (response.getResponseCode() !== 200) {
       return {ok: false, msg: 'Gagal export: HTTP ' + response.getResponseCode()};
