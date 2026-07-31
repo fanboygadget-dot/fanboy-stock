@@ -95,6 +95,11 @@ function bulkUpdateHargaRupiah() {
 // --- WEB APP ---
 function doGet(e) {
   var page = (e && e.parameter && e.parameter.page) || 'main';
+  // Debug: penjualan dates
+  if (page === 'debug_penjualan') {
+    var result = debugPenjualanDates();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result, null, 2) + '</pre>').setTitle('Debug Penjualan');
+  }
   // Admin action: bulk update modal VLOOKUP
   if (page === 'bulk_update_modal') {
     var result = bulkUpdateModalVlookup();
@@ -913,30 +918,36 @@ function debugPenjualanDates() {
     var allData = sheet.getDataRange().getDisplayValues();
     if (allData.length < 2) return {ok: false, msg: 'Sheet kosong'};
 
-    // Find Tanggal column
-    var tglCol = -1;
-    for (var j = 0; j < allData[0].length; j++) {
-      if (String(allData[0][j]).toLowerCase().indexOf('tanggal') >= 0) { tglCol = j; break; }
+    // Return first 3 rows to see actual headers
+    var firstRows = [];
+    for (var i = 0; i < Math.min(3, allData.length); i++) {
+      firstRows.push(allData[i]);
     }
-    if (tglCol < 0) return {ok: false, msg: 'Kolom Tanggal tidak ditemukan'};
 
-    // Get last 10 rows to see recent dates
-    var samples = [];
-    var start = Math.max(1, allData.length - 10);
+    // Try to find any date-like column
+    var dateColCandidates = [];
+    for (var j = 0; j < allData[0].length; j++) {
+      var header = String(allData[0][j] || '').toLowerCase();
+      if (header.indexOf('tgl') >= 0 || header.indexOf('date') >= 0 || header.indexOf('tanggal') >= 0 || header.indexOf('waktu') >= 0) {
+        dateColCandidates.push({col: j, header: allData[0][j]});
+      }
+    }
+
+    // Get last 5 rows
+    var lastRows = [];
+    var start = Math.max(0, allData.length - 5);
     for (var i = start; i < allData.length; i++) {
-      samples.push({
-        row: i + 1,
-        tanggal: String(allData[i][tglCol] || ''),
-        parsed: parsePenjualanDate(String(allData[i][tglCol] || ''))
-      });
+      lastRows.push(allData[i]);
     }
 
     return {
       ok: true,
-      tglCol: tglCol,
       totalRows: allData.length,
-      headerRow: allData[0],
-      samples: samples
+      totalCols: allData[0].length,
+      headers: allData[0],
+      firstRows: firstRows,
+      lastRows: lastRows,
+      dateColCandidates: dateColCandidates
     };
   } catch(e) {
     return {ok: false, msg: e.toString()};
