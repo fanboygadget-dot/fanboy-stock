@@ -944,7 +944,7 @@ function getPenjualanFiltered(startDate, endDate) {
   }
 }
 
-// Generate Excel file and return as base64
+// Generate CSV file and return as base64
 function generatePenjualanExcel(startDate, endDate) {
   try {
     var result = getPenjualanFiltered(startDate, endDate);
@@ -954,98 +954,51 @@ function generatePenjualanExcel(startDate, endDate) {
       return {ok: false, msg: 'Tidak ada data untuk periode ini'};
     }
 
-    // Create temp spreadsheet
-    var label = 'Laporan ' + startDate + ' - ' + endDate;
-    var tempSS = SpreadsheetApp.create(label);
-    var tempSheet = tempSS.getActiveSheet();
-    tempSheet.setName('Laporan Penjualan');
-
-    // Write headers
+    // Build CSV content
     var headers = result.headers;
-    tempSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    tempSheet.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#1a73e8')
-      .setFontColor('#ffffff')
-      .setHorizontalAlignment('center');
+    var rows = result.data;
+    var csvRows = [];
 
-    // Write data rows
-    if (result.data.length > 0) {
-      tempSheet.getRange(2, 1, result.data.length, headers.length).setValues(result.data);
+    // Header row
+    var headerLine = headers.map(function(h) {
+      return '"' + String(h || '').replace(/"/g, '""') + '"';
+    }).join(',');
+    csvRows.push(headerLine);
+
+    // Data rows
+    for (var i = 0; i < rows.length; i++) {
+      var line = rows[i].map(function(cell) {
+        return '"' + String(cell || '').replace(/"/g, '""') + '"';
+      }).join(',');
+      csvRows.push(line);
     }
 
-    // Style: borders, alternating row colors
-    var lastRow = result.data.length + 1;
-    if (lastRow > 1) {
-      var range = tempSheet.getRange(1, 1, lastRow, headers.length);
-      range.setBorder(true, true, true, true, true, true);
-      range.setFontFamily('Arial');
-      range.setFontSize(10);
-      // Alternating row colors
-      for (var r = 2; r <= lastRow; r++) {
-        if (r % 2 === 0) {
-          tempSheet.getRange(r, 1, 1, headers.length).setBackground('#f0f4ff');
-        }
-      }
-    }
-
-    // Auto-fit columns
-    for (var c = 1; c <= headers.length; c++) {
-      tempSheet.autoResizeColumn(c);
-    }
-
-    // Add summary row at bottom
-    var summaryRow = lastRow + 2;
-    tempSheet.getRange(summaryRow, 1).setValue('Total Data:');
-    tempSheet.getRange(summaryRow, 1).setFontWeight('bold');
-    tempSheet.getRange(summaryRow, 2).setValue(result.count + ' transaksi');
-
-    // Try to sum Harga Awal column (column I = index 9)
+    // Summary row
     var hargaCol = -1;
     for (var c = 0; c < headers.length; c++) {
       if (String(headers[c]).toLowerCase().indexOf('harga') >= 0) {
-        hargaCol = c + 1; // 1-indexed
+        hargaCol = c;
         break;
       }
     }
-    if (hargaCol > 0) {
-      // Count numeric values in harga column
-      var totalHarga = 0;
-      var countHarga = 0;
-      for (var r = 0; r < result.data.length; r++) {
-        var val = parseHarga(result.data[r][hargaCol - 1]);
-        if (val > 0) { totalHarga += val; countHarga++; }
-      }
-      if (countHarga > 0) {
-        tempSheet.getRange(summaryRow, hargaCol).setValue(formatRupiah(totalHarga));
-        tempSheet.getRange(summaryRow, hargaCol).setFontWeight('bold');
+    var totalHarga = 0;
+    if (hargaCol >= 0) {
+      for (var r = 0; r < rows.length; r++) {
+        var val = parseHarga(rows[r][hargaCol]);
+        if (val > 0) totalHarga += val;
       }
     }
-
-    // Export as xlsx
-    var exportUrl = 'https://docs.google.com/spreadsheets/d/' + tempSS.getId() + '/export?format=xlsx';
-    var token = ScriptApp.getOAuthToken();
-    var response = UrlFetchApp.fetch(exportUrl, {
-      headers: { 'Authorization': 'Bearer ' + token },
-      muteHttpExceptions: true
-    });
-
-    // Delete temp spreadsheet via Drive API (avoids DriveApp permission)
-    var delUrl = 'https://www.googleapis.com/drive/v3/files/' + tempSS.getId() + '?supportsAllDrives=true';
-    UrlFetchApp.fetch(delUrl, {
-      method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() },
-      muteHttpExceptions: true
-    });
-
-    if (response.getResponseCode() !== 200) {
-      return {ok: false, msg: 'Gagal export: HTTP ' + response.getResponseCode()};
+    csvRows.push('');
+    csvRows.push('"Total Data:","' + result.count + ' transaksi"');
+    if (totalHarga > 0) {
+      csvRows.push('"Total Harga:","' + formatRupiah(totalHarga) + '"');
     }
 
-    var base64 = Utilities.base64Encode(response.getBlob().getBytes());
+    var csvContent = '\uFEFF' + csvRows.join('\n'); // BOM for Excel
+    var base64 = Utilities.base64Encode(Utilities.newBlob(csvContent, 'text/csv', 'laporan.csv').getBytes());
     var cleanStart = startDate.replace(/\//g, '-');
     var cleanEnd = endDate.replace(/\//g, '-');
-    var filename = 'Laporan_Penjualan_' + cleanStart + '_sd_' + cleanEnd + '.xlsx';
+    var filename = 'Laporan_Penjualan_' + cleanStart + '_sd_' + cleanEnd + '.csv';
 
     return {ok: true, data: base64, filename: filename, count: result.count};
   } catch(e) {

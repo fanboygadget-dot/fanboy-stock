@@ -818,7 +818,7 @@
         <!-- DOWNLOAD LAPORAN PENJUALAN -->
         <div class="card">
           <div class="card-header"><i class="fas fa-file-excel"></i> Download Laporan Penjualan</div>
-          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format Excel (.xlsx)</p>
+          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format CSV (.csv)</p>
           <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-group" style="margin-bottom:0">
               <label style="font-size:12px">Tanggal Mulai</label>
@@ -2482,7 +2482,7 @@
         var raw = atob(res.data);
         var arr = new Uint8Array(raw.length);
         for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-        var blob = new Blob([arr], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var blob = new Blob([arr], {type: 'text/csv;charset=utf-8'});
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
