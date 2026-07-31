@@ -868,19 +868,79 @@ function generateSalesReportCSV() {
 // ============================================
 var PENJUALAN_SS_ID = '14p1HAVqNoAcGFEohngYn1nNpHJJt2WHq1btghMOs4dM';
 
-// Parse date from DD/MM/YYYY or DD/MM/YYYY HH:mm → Date object
+// Parse date from multiple formats → Date object
 function parsePenjualanDate(s) {
   if (!s) return null;
   s = String(s).trim();
-  // DD/MM/YYYY or DD/MM/YYYY HH:mm
-  var parts = s.split(' ')[0].split('/');
+  if (!s) return null;
+
+  // Remove time part if present (e.g., "30/07/2026 14:30" → "30/07/2026")
+  var datePart = s.split(' ')[0];
+
+  // Try DD/MM/YYYY or D/M/YYYY
+  var parts = datePart.split('/');
   if (parts.length === 3) {
     var d = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, y = parseInt(parts[2], 10);
-    if (!isNaN(d) && !isNaN(m) && !isNaN(y)) return new Date(y, m, d);
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y) && y > 2000) return new Date(y, m, d);
   }
-  // yyyy-MM-dd fallback
+
+  // Try YYYY-MM-DD
+  parts = datePart.split('-');
+  if (parts.length === 3) {
+    var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, d = parseInt(parts[2], 10);
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y) && y > 2000) return new Date(y, m, d);
+  }
+
+  // Try DD-MM-YYYY
+  parts = datePart.split('-');
+  if (parts.length === 3) {
+    var d = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, y = parseInt(parts[2], 10);
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y) && y > 2000) return new Date(y, m, d);
+  }
+
+  // Fallback
   var d2 = new Date(s);
   return isNaN(d2.getTime()) ? null : d2;
+}
+
+// Debug: return sample rows from Data Penjualan to inspect date format
+function debugPenjualanDates() {
+  try {
+    var ss = SpreadsheetApp.openById(PENJUALAN_SS_ID);
+    var sheet = ss.getSheetByName('Data Penjualan');
+    if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+
+    var allData = sheet.getDataRange().getDisplayValues();
+    if (allData.length < 2) return {ok: false, msg: 'Sheet kosong'};
+
+    // Find Tanggal column
+    var tglCol = -1;
+    for (var j = 0; j < allData[0].length; j++) {
+      if (String(allData[0][j]).toLowerCase().indexOf('tanggal') >= 0) { tglCol = j; break; }
+    }
+    if (tglCol < 0) return {ok: false, msg: 'Kolom Tanggal tidak ditemukan'};
+
+    // Get last 10 rows to see recent dates
+    var samples = [];
+    var start = Math.max(1, allData.length - 10);
+    for (var i = start; i < allData.length; i++) {
+      samples.push({
+        row: i + 1,
+        tanggal: String(allData[i][tglCol] || ''),
+        parsed: parsePenjualanDate(String(allData[i][tglCol] || ''))
+      });
+    }
+
+    return {
+      ok: true,
+      tglCol: tglCol,
+      totalRows: allData.length,
+      headerRow: allData[0],
+      samples: samples
+    };
+  } catch(e) {
+    return {ok: false, msg: e.toString()};
+  }
 }
 
 // Get filtered penjualan data (used by both download & preview)
