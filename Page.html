@@ -2478,21 +2478,10 @@
           el.className = 'msg-error';
           return;
         }
-        // Decode base64 to blob
-        var raw = atob(res.data);
-        var arr = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-        var blob = new Blob([arr], {type: 'text/csv;charset=utf-8'});
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = res.filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-        el.innerHTML = '✅ Berhasil didownload! (' + res.count + ' data)';
+        el.innerHTML = '✅ Laporan siap! (' + res.count + ' data)<br><br>' +
+          '<a href="' + esc(res.url) + '" target="_blank" style="color:#1a73e8;font-weight:bold;text-decoration:underline">' +
+          '📄 Buka Spreadsheet</a>';
         el.className = 'msg-success';
-        setTimeout(function(){ el.style.display = 'none'; }, 4000);
       }).withFailureHandler(function(err) {
         el.innerHTML = '❌ Error: ' + err.message;
         el.className = 'msg-error';

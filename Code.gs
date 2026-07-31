@@ -944,7 +944,7 @@ function getPenjualanFiltered(startDate, endDate) {
   }
 }
 
-// Generate CSV file and return as base64
+// Generate Google Spreadsheet link for penjualan data
 function generatePenjualanExcel(startDate, endDate) {
   try {
     var result = getPenjualanFiltered(startDate, endDate);
@@ -954,53 +954,57 @@ function generatePenjualanExcel(startDate, endDate) {
       return {ok: false, msg: 'Tidak ada data untuk periode ini'};
     }
 
-    // Build CSV content
     var headers = result.headers;
     var rows = result.data;
-    var csvRows = [];
 
-    // Header row
-    var headerLine = headers.map(function(h) {
-      return '"' + String(h || '').replace(/"/g, '""') + '"';
-    }).join(',');
-    csvRows.push(headerLine);
+    // Create spreadsheet
+    var cleanStart = startDate.replace(/\//g, '-');
+    var cleanEnd = endDate.replace(/\//g, '-');
+    var ss = SpreadsheetApp.create('Laporan_Penjualan_' + cleanStart + '_sd_' + cleanEnd);
+    var sheet = ss.getActiveSheet();
+    sheet.setName('Laporan Penjualan');
 
-    // Data rows
-    for (var i = 0; i < rows.length; i++) {
-      var line = rows[i].map(function(cell) {
-        return '"' + String(cell || '').replace(/"/g, '""') + '"';
-      }).join(',');
-      csvRows.push(line);
+    // Write headers
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length)
+      .setFontWeight('bold').setBackground('#1a73e8')
+      .setFontColor('#ffffff').setHorizontalAlignment('center');
+
+    // Write data
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
     }
 
-    // Summary row
+    // Style
+    var lastRow = rows.length + 1;
+    var range = sheet.getRange(1, 1, lastRow, headers.length);
+    range.setBorder(true, true, true, true, true, true);
+    for (var r = 2; r <= lastRow; r++) {
+      if (r % 2 === 0) sheet.getRange(r, 1, 1, headers.length).setBackground('#f0f4ff');
+    }
+    for (var c = 1; c <= headers.length; c++) sheet.autoResizeColumn(c);
+
+    // Summary
     var hargaCol = -1;
     for (var c = 0; c < headers.length; c++) {
-      if (String(headers[c]).toLowerCase().indexOf('harga') >= 0) {
-        hargaCol = c;
-        break;
-      }
+      if (String(headers[c]).toLowerCase().indexOf('harga') >= 0) { hargaCol = c + 1; break; }
     }
     var totalHarga = 0;
-    if (hargaCol >= 0) {
+    if (hargaCol > 0) {
       for (var r = 0; r < rows.length; r++) {
-        var val = parseHarga(rows[r][hargaCol]);
+        var val = parseHarga(rows[r][hargaCol - 1]);
         if (val > 0) totalHarga += val;
       }
     }
-    csvRows.push('');
-    csvRows.push('"Total Data:","' + result.count + ' transaksi"');
+    var sr = lastRow + 2;
+    sheet.getRange(sr, 1).setValue('Total Data:').setFontWeight('bold');
+    sheet.getRange(sr, 2).setValue(result.count + ' transaksi');
     if (totalHarga > 0) {
-      csvRows.push('"Total Harga:","' + formatRupiah(totalHarga) + '"');
+      sheet.getRange(sr, hargaCol).setValue(formatRupiah(totalHarga)).setFontWeight('bold');
     }
 
-    var csvContent = '\uFEFF' + csvRows.join('\n'); // BOM for Excel
-    var base64 = Utilities.base64Encode(Utilities.newBlob(csvContent, 'text/csv', 'laporan.csv').getBytes());
-    var cleanStart = startDate.replace(/\//g, '-');
-    var cleanEnd = endDate.replace(/\//g, '-');
-    var filename = 'Laporan_Penjualan_' + cleanStart + '_sd_' + cleanEnd + '.csv';
-
-    return {ok: true, data: base64, filename: filename, count: result.count};
+    var url = ss.getUrl();
+    return {ok: true, url: url, ssId: ss.getId(), count: result.count};
   } catch(e) {
     return {ok: false, msg: 'Error: ' + e.toString()};
   }
