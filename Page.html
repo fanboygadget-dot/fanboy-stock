@@ -287,6 +287,9 @@
         <div class="nav-item" onclick="switchPage('riwayat')" data-page="riwayat">
           <i class="fas fa-history"></i> <span>Riwayat Penjualan</span>
         </div>
+        <div class="nav-item" onclick="switchPage('dbsold')" data-page="dbsold">
+          <i class="fas fa-database"></i> <span>Database Sold</span>
+        </div>
         <div class="nav-item" onclick="switchPage('geser')" data-page="geser">
           <i class="fas fa-exchange-alt"></i> <span>Geser Stok</span>
         </div>
@@ -811,6 +814,49 @@
           <div id="riwayatResult" class="msg"></div>
           <div id="riwayatTable" class="table-wrap" style="overflow-x:auto"></div>
         </div>
+        
+        <!-- DOWNLOAD LAPORAN PENJUALAN -->
+        <div class="card">
+          <div class="card-header"><i class="fas fa-file-excel"></i> Download Laporan Penjualan</div>
+          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format Excel (.xlsx)</p>
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">Tanggal Mulai</label>
+              <input type="date" id="penStartDate" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label style="font-size:12px">Tanggal Akhir</label>
+              <input type="date" id="penEndDate" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit">
+            </div>
+            <button class="btn btn-sm" onclick="downloadPenjualanExcel()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;padding:8px 16px;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+              <i class="fas fa-file-excel"></i> Download Spreadsheet
+            </button>
+          </div>
+          <div id="penResult" class="msg" style="margin-top:12px"></div>
+        </div>
+      </div>
+      
+      <!-- DATABASE SOLD -->
+      <div id="page-dbsold" style="display:none">
+        <div class="page-title"><i class="fas fa-database"></i> Database Sold</div>
+        <div class="stats" id="dbsoldStats"></div>
+        <div class="card">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span><i class="fas fa-database"></i> Stok yang Sudah Terjual</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select id="dbsoldMonth" onchange="loadSoldDatabase()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                <option value="">Semua Bulan</option>
+              </select>
+              <select id="dbsoldLokasi" onchange="loadSoldDatabase()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                <option value="">Semua Lokasi</option>
+              </select>
+              <input type="text" id="dbsoldSearch" placeholder="Cari SN, Model, Spec..." onkeyup="loadSoldDatabase()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:200px">
+              <button class="btn btn-primary btn-sm" onclick="loadSoldDatabase()"><i class="fas fa-sync"></i> Refresh</button>
+            </div>
+          </div>
+          <div id="dbsoldResult" class="msg"></div>
+          <div id="dbsoldTable" class="table-wrap" style="overflow-x:auto"></div>
+        </div>
       </div>
       
       <!-- GESER STOK -->
@@ -906,6 +952,7 @@
     function $(id) { return document.getElementById(id); }
     function esc(s) { if(!s)return''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
     function fmtNum(n) { return String(n).replace(/(\d)(?=(\d{3})+(?!\d))/g,'$1.'); }
+    function fmtRp(n) { return 'Rp ' + fmtNum(Number(n)||0); }
     function parseDateSort(s) {
       if (!s) return 0;
       // Try dd/MM/yyyy or dd/MM/yyyy HH:mm
@@ -940,7 +987,8 @@
       else if(page==='servis') loadServisList();
       else if(page==='input') {}
       else if(page==='penjualan') autoFillStaffFields();
-      else if(page==='riwayat') loadRiwayat();
+      else if(page==='riwayat') { loadRiwayat(); initPenjualanDates(); }
+      else if(page==='dbsold') initSoldDatabase();
       else if(page==='geser') initGeserPage();
       else if(page==='pengaturan') loadConfig();
       if(window.innerWidth<=768) toggleSidebar();
@@ -2397,6 +2445,60 @@
       }).generateSalesReportCSV();
     }
     
+    function initPenjualanDates() {
+      // Set default: first day of current month to today
+      var now = new Date();
+      var firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      var fmt = function(d) {
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      };
+      if ($('penStartDate') && !$('penStartDate').value) $('penStartDate').value = fmt(firstDay);
+      if ($('penEndDate') && !$('penEndDate').value) $('penEndDate').value = fmt(now);
+    }
+    
+    function downloadPenjualanExcel() {
+      var startDate = $('penStartDate').value;
+      var endDate = $('penEndDate').value;
+      if (!startDate || !endDate) {
+        alert('Pilih tanggal mulai dan tanggal akhir!');
+        return;
+      }
+      // Convert YYYY-MM-DD to DD/MM/YYYY for server
+      var sParts = startDate.split('-');
+      var eParts = endDate.split('-');
+      var sFormatted = sParts[2] + '/' + sParts[1] + '/' + sParts[0];
+      var eFormatted = eParts[2] + '/' + eParts[1] + '/' + eParts[0];
+      
+      var el = $('penResult');
+      el.innerHTML = '⏳ Generating spreadsheet... Mohon tunggu...'; el.className = 'msg'; el.style.display = 'block';
+      
+      google.script.run.withSuccessHandler(function(res) {
+        if (!res || !res.ok) {
+          el.innerHTML = '❌ ' + (res ? res.msg : 'Gagal generate laporan');
+          el.className = 'msg-error';
+          return;
+        }
+        // Decode base64 to blob
+        var raw = atob(res.data);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        var blob = new Blob([arr], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+        el.innerHTML = '✅ Berhasil didownload! (' + res.count + ' data)';
+        el.className = 'msg-success';
+        setTimeout(function(){ el.style.display = 'none'; }, 4000);
+      }).withFailureHandler(function(err) {
+        el.innerHTML = '❌ Error: ' + err.message;
+        el.className = 'msg-error';
+      }).generatePenjualanExcel(sFormatted, eFormatted);
+    }
+    
     function markLunas(idx) {
       var r = riwayatData[idx];
       if(!confirm('Tandai invoice '+r.invNo+' sebagai LUNAS?\nSN: '+r.sn+'\nSisa: Rp '+fmtNum(r.sisaBayar||0)+' → Rp 0')) return;
@@ -2458,6 +2560,147 @@
       if($('tiKondisi')) $('tiKondisi').value='Baik';
       if($('tiHargaBeli')) $('tiHargaBeli').value='';
       if($('tradeInSummary')) $('tradeInSummary').style.display='none';
+    }
+    
+    // DATABASE SOLD
+    var soldDatabaseData = [];
+    
+    function initSoldDatabase() {
+      // Load months
+      google.script.run.withSuccessHandler(function(months) {
+        var sel = $('dbsoldMonth');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">Semua Bulan</option>';
+        (months||[]).forEach(function(m) {
+          sel.innerHTML += '<option value="'+m+'"'+(m===cur?' selected':'')+'>'+m+'</option>';
+        });
+      }).getSoldMonths();
+      // Load lokasi
+      google.script.run.withSuccessHandler(function(locs) {
+        var sel = $('dbsoldLokasi');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">Semua Lokasi</option>';
+        (locs||[]).forEach(function(l) {
+          sel.innerHTML += '<option value="'+l+'"'+(l===cur?' selected':'')+'>'+l+'</option>';
+        });
+      }).getLocations();
+      loadSoldDatabase();
+    }
+    
+    function loadSoldDatabase() {
+      var filters = {
+        month: $('dbsoldMonth').value || '',
+        lokasi: $('dbsoldLokasi').value || '',
+        search: $('dbsoldSearch').value || ''
+      };
+      
+      $('dbsoldResult').className = 'msg';
+      $('dbsoldResult').style.display = 'none';
+      
+      google.script.run.withSuccessHandler(function(result) {
+        if (!result || !result.ok) {
+          $('dbsoldResult').textContent = result ? result.msg : 'Gagal memuat data';
+          $('dbsoldResult').className = 'msg msg-error';
+          $('dbsoldResult').style.display = 'block';
+          return;
+        }
+        
+        soldDatabaseData = result.items || [];
+        
+        // Stats
+        var h = '';
+        h += '<div class="stat-card"><div class="stat-icon" style="background:#e2e8f0;color:#475569"><i class="fas fa-database"></i></div><div class="stat-info"><div class="num">'+fmtNum(result.total)+'</div><div class="lbl">Total Terjual</div></div></div>';
+        h += '<div class="stat-card"><div class="stat-icon" style="background:#dbeafe;color:#2563eb"><i class="fas fa-shopping-cart"></i></div><div class="stat-info"><div class="num">'+fmtRp(result.totalModal)+'</div><div class="lbl">Total Modal</div></div></div>';
+        h += '<div class="stat-card"><div class="stat-icon" style="background:#dcfce7;color:#16a34a"><i class="fas fa-money-bill-wave"></i></div><div class="stat-info"><div class="num">'+fmtRp(result.totalJual)+'</div><div class="lbl">Total Penjualan</div></div></div>';
+        h += '<div class="stat-card"><div class="stat-icon" style="background:'+(result.totalMargin>=0?'#dcfce7;color:#16a34a':'#fee2e2;color:#dc2626')+'"><i class="fas fa-chart-line"></i></div><div class="stat-info"><div class="num">'+fmtRp(result.totalMargin)+'</div><div class="lbl">Total Margin</div></div></div>';
+        $('dbsoldStats').innerHTML = h;
+        
+        // Table
+        if (soldDatabaseData.length === 0) {
+          $('dbsoldTable').innerHTML = '<div style="padding:20px;text-align:center;color:#64748b"><i class="fas fa-inbox" style="font-size:32px;margin-bottom:8px;display:block"></i>Tidak ada data</div>';
+          return;
+        }
+        
+        var thtml = '<table><thead><tr>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'sn\')">SN ↕</th>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'model\')">Model ↕</th>';
+        thtml += '<th>Spec</th>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'hargaBeliNum\')">Modal ↕</th>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'hargaJualNum\')">H.Jual ↕</th>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'margin\')">Margin ↕</th>';
+        thtml += '<th>Lokasi</th>';
+        thtml += '<th>Suplier</th>';
+        thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'tanggalLog\')">Tgl Log ↕</th>';
+        thtml += '</tr></thead><tbody>';
+        
+        for (var i = 0; i < soldDatabaseData.length; i++) {
+          var it = soldDatabaseData[i];
+          var marginClass = it.margin >= 0 ? 'badge-green' : 'badge-red';
+          thtml += '<tr>';
+          thtml += '<td><b>'+it.sn+'</b></td>';
+          thtml += '<td>'+it.model+'</td>';
+          thtml += '<td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+it.spec+'</td>';
+          thtml += '<td>'+fmtRp(it.hargaBeliNum)+'</td>';
+          thtml += '<td>'+fmtRp(it.hargaJualNum)+'</td>';
+          thtml += '<td><span class="badge '+marginClass+'">'+fmtRp(it.margin)+'</span></td>';
+          thtml += '<td><span class="badge badge-blue">'+it.lokasi+'</span></td>';
+          thtml += '<td style="font-size:12px">'+it.suplier+'</td>';
+          thtml += '<td style="font-size:12px">'+it.tanggalLog+'</td>';
+          thtml += '</tr>';
+        }
+        
+        thtml += '</tbody></table>';
+        $('dbsoldTable').innerHTML = thtml;
+      }).getSoldDatabase(filters);
+    }
+    
+    var soldDBSortKey = '';
+    var soldDBSortAsc = true;
+    
+    function sortSoldDB(key) {
+      if (soldDBSortKey === key) {
+        soldDBSortAsc = !soldDBSortAsc;
+      } else {
+        soldDBSortKey = key;
+        soldDBSortAsc = true;
+      }
+      soldDatabaseData.sort(function(a, b) {
+        var va = a[key], vb = b[key];
+        if (typeof va === 'string') va = va.toUpperCase();
+        if (typeof vb === 'string') vb = vb.toUpperCase();
+        if (va < vb) return soldDBSortAsc ? -1 : 1;
+        if (va > vb) return soldDBSortAsc ? 1 : -1;
+        return 0;
+      });
+      // Re-render table
+      var thtml = '<table><thead><tr>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'sn\')">SN ↕</th>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'model\')">Model ↕</th>';
+      thtml += '<th>Spec</th>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'hargaBeliNum\')">Modal ↕</th>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'hargaJualNum\')">H.Jual ↕</th>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'margin\')">Margin ↕</th>';
+      thtml += '<th>Lokasi</th>';
+      thtml += '<th>Suplier</th>';
+      thtml += '<th style="cursor:pointer" onclick="sortSoldDB(\'tanggalLog\')">Tgl Log ↕</th>';
+      thtml += '</tr></thead><tbody>';
+      for (var i = 0; i < soldDatabaseData.length; i++) {
+        var it = soldDatabaseData[i];
+        var marginClass = it.margin >= 0 ? 'badge-green' : 'badge-red';
+        thtml += '<tr>';
+        thtml += '<td><b>'+it.sn+'</b></td>';
+        thtml += '<td>'+it.model+'</td>';
+        thtml += '<td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+it.spec+'</td>';
+        thtml += '<td>'+fmtRp(it.hargaBeliNum)+'</td>';
+        thtml += '<td>'+fmtRp(it.hargaJualNum)+'</td>';
+        thtml += '<td><span class="badge '+marginClass+'">'+fmtRp(it.margin)+'</span></td>';
+        thtml += '<td><span class="badge badge-blue">'+it.lokasi+'</span></td>';
+        thtml += '<td style="font-size:12px">'+it.suplier+'</td>';
+        thtml += '<td style="font-size:12px">'+it.tanggalLog+'</td>';
+        thtml += '</tr>';
+      }
+      thtml += '</tbody></table>';
+      $('dbsoldTable').innerHTML = thtml;
     }
     
     // GESER STOK

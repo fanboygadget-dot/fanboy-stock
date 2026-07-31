@@ -863,6 +863,191 @@ function generateSalesReportCSV() {
   return csv;
 }
 
+// ============================================
+// LAPORAN PENJUALAN (Data Penjualan sheet)
+// ============================================
+var PENJUALAN_SS_ID = '14p1HAVqNoAcGFEohngYn1nNpHJJt2WHq1btghMOs4dM';
+
+// Parse date from DD/MM/YYYY or DD/MM/YYYY HH:mm → Date object
+function parsePenjualanDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  // DD/MM/YYYY or DD/MM/YYYY HH:mm
+  var parts = s.split(' ')[0].split('/');
+  if (parts.length === 3) {
+    var d = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, y = parseInt(parts[2], 10);
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y)) return new Date(y, m, d);
+  }
+  // yyyy-MM-dd fallback
+  var d2 = new Date(s);
+  return isNaN(d2.getTime()) ? null : d2;
+}
+
+// Get filtered penjualan data (used by both download & preview)
+function getPenjualanFiltered(startDate, endDate) {
+  try {
+    var ss = SpreadsheetApp.openById(PENJUALAN_SS_ID);
+    var sheet = ss.getSheetByName('Data Penjualan');
+    if (!sheet) return {ok: false, msg: 'Sheet "Data Penjualan" tidak ditemukan'};
+
+    var allData = sheet.getDataRange().getDisplayValues();
+    if (allData.length < 2) return {ok: true, data: [], count: 0};
+
+    // Find header row (contains "Tanggal")
+    var headerRow = -1;
+    var tglCol = -1;
+    for (var i = 0; i < Math.min(10, allData.length); i++) {
+      for (var j = 0; j < allData[i].length; j++) {
+        if (String(allData[i][j]).toLowerCase().indexOf('tanggal') >= 0) {
+          headerRow = i;
+          tglCol = j;
+          break;
+        }
+      }
+      if (headerRow >= 0) break;
+    }
+    if (headerRow < 0) return {ok: false, msg: 'Kolom Tanggal tidak ditemukan'};
+
+    var start = parsePenjualanDate(startDate);
+    var end = parsePenjualanDate(endDate);
+
+    // Collect all data rows
+    var rows = [];
+    var headers = allData[headerRow];
+    var numCols = headers.length;
+
+    for (var i = headerRow + 1; i < allData.length; i++) {
+      var row = allData[i];
+      // Skip completely empty rows
+      var isEmpty = true;
+      for (var c = 0; c < row.length; c++) {
+        if (String(row[c] || '').trim()) { isEmpty = false; break; }
+      }
+      if (isEmpty) continue;
+
+      // Filter by date
+      var rowDate = parsePenjualanDate(String(row[tglCol] || ''));
+      if (start && rowDate && rowDate < start) continue;
+      if (end && rowDate && rowDate > end) continue;
+
+      // Pad row to match header columns
+      var paddedRow = [];
+      for (var c = 0; c < numCols; c++) {
+        paddedRow.push(String(row[c] || ''));
+      }
+      rows.push(paddedRow);
+    }
+
+    return {ok: true, headers: headers, data: rows, count: rows.length};
+  } catch(e) {
+    return {ok: false, msg: 'Error: ' + e.toString()};
+  }
+}
+
+// Generate Excel file and return as base64
+function generatePenjualanExcel(startDate, endDate) {
+  try {
+    var result = getPenjualanFiltered(startDate, endDate);
+    if (!result.ok) return result;
+
+    if (result.count === 0) {
+      return {ok: false, msg: 'Tidak ada data untuk periode ini'};
+    }
+
+    // Create temp spreadsheet
+    var label = 'Laporan ' + startDate + ' - ' + endDate;
+    var tempSS = SpreadsheetApp.create(label);
+    var tempSheet = tempSS.getActiveSheet();
+    tempSheet.setName('Laporan Penjualan');
+
+    // Write headers
+    var headers = result.headers;
+    tempSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    tempSheet.getRange(1, 1, 1, headers.length)
+      .setFontWeight('bold')
+      .setBackground('#1a73e8')
+      .setFontColor('#ffffff')
+      .setHorizontalAlignment('center');
+
+    // Write data rows
+    if (result.data.length > 0) {
+      tempSheet.getRange(2, 1, result.data.length, headers.length).setValues(result.data);
+    }
+
+    // Style: borders, alternating row colors
+    var lastRow = result.data.length + 1;
+    if (lastRow > 1) {
+      var range = tempSheet.getRange(1, 1, lastRow, headers.length);
+      range.setBorder(true, true, true, true, true, true);
+      range.setFontFamily('Arial');
+      range.setFontSize(10);
+      // Alternating row colors
+      for (var r = 2; r <= lastRow; r++) {
+        if (r % 2 === 0) {
+          tempSheet.getRange(r, 1, 1, headers.length).setBackground('#f0f4ff');
+        }
+      }
+    }
+
+    // Auto-fit columns
+    for (var c = 1; c <= headers.length; c++) {
+      tempSheet.autoResizeColumn(c);
+    }
+
+    // Add summary row at bottom
+    var summaryRow = lastRow + 2;
+    tempSheet.getRange(summaryRow, 1).setValue('Total Data:');
+    tempSheet.getRange(summaryRow, 1).setFontWeight('bold');
+    tempSheet.getRange(summaryRow, 2).setValue(result.count + ' transaksi');
+
+    // Try to sum Harga Awal column (column I = index 9)
+    var hargaCol = -1;
+    for (var c = 0; c < headers.length; c++) {
+      if (String(headers[c]).toLowerCase().indexOf('harga') >= 0) {
+        hargaCol = c + 1; // 1-indexed
+        break;
+      }
+    }
+    if (hargaCol > 0) {
+      // Count numeric values in harga column
+      var totalHarga = 0;
+      var countHarga = 0;
+      for (var r = 0; r < result.data.length; r++) {
+        var val = parseHarga(result.data[r][hargaCol - 1]);
+        if (val > 0) { totalHarga += val; countHarga++; }
+      }
+      if (countHarga > 0) {
+        tempSheet.getRange(summaryRow, hargaCol).setValue(formatRupiah(totalHarga));
+        tempSheet.getRange(summaryRow, hargaCol).setFontWeight('bold');
+      }
+    }
+
+    // Export as xlsx
+    var exportUrl = 'https://docs.google.com/spreadsheets/d/' + tempSS.getId() + '/export?format=xlsx';
+    var token = ScriptApp.getOAuthToken();
+    var response = UrlFetchApp.fetch(exportUrl, {
+      headers: { 'Authorization': 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+
+    // Delete temp spreadsheet
+    DriveApp.getFileById(tempSS.getId()).setTrashed(true);
+
+    if (response.getResponseCode() !== 200) {
+      return {ok: false, msg: 'Gagal export: HTTP ' + response.getResponseCode()};
+    }
+
+    var base64 = Utilities.base64Encode(response.getBlob().getBytes());
+    var cleanStart = startDate.replace(/\//g, '-');
+    var cleanEnd = endDate.replace(/\//g, '-');
+    var filename = 'Laporan_Penjualan_' + cleanStart + '_sd_' + cleanEnd + '.xlsx';
+
+    return {ok: true, data: base64, filename: filename, count: result.count};
+  } catch(e) {
+    return {ok: false, msg: 'Error: ' + e.toString()};
+  }
+}
+
 // --- UPDATE INVOICE PRICE ---
 function updateInvoicePrice(data) {
   var ss = SpreadsheetApp.openById(SS_ID);
@@ -1813,6 +1998,110 @@ function deleteStaffAccount(username) {
   if (username.toUpperCase() === 'ADMIN') return {ok:false, msg:'Tidak bisa hapus admin utama'};
   props.deleteProperty(key);
   return {ok:true, msg:'Akun dihapus: ' + username};
+}
+
+// --- DATABASE SOLD: Read Log_stok_sold sheet ---
+function getSoldDatabase(filters) {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Log_stok_sold');
+  if (!sheet) return {ok: false, msg: 'Sheet Log_stok_sold tidak ditemukan'};
+  var data = sheet.getDataRange().getDisplayValues();
+  if (data.length < 2) return {ok: true, items: [], total: 0};
+
+  var items = [];
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+    // Pad
+    while (r.length < 14) r.push('');
+    var row = {
+      sn: String(r[0] || ''),
+      model: String(r[1] || ''),
+      spec: String(r[2] || ''),
+      kondisi: String(r[3] || ''),
+      hargaBeli: r[4] || '',
+      biayaServis: r[5] || '',
+      totalModal: r[6] || '',
+      hargaJual: r[7] || '',
+      status: String(r[8] || ''),
+      tanggalMasuk: String(r[9] || ''),
+      suplier: String(r[10] || ''),
+      lokasi: String(r[11] || '').toUpperCase().trim(),
+      history: String(r[12] || ''),
+      tanggalLog: String(r[13] || '')
+    };
+
+    // Apply filters if provided
+    if (filters) {
+      if (filters.month && row.tanggalLog) {
+        // Filter by month format "MM/YYYY"
+        var logMonth = '';
+        var parts = row.tanggalLog.split('/');
+        if (parts.length >= 2) logMonth = parts[1] + '/' + parts[2];
+        if (logMonth !== filters.month) continue;
+      }
+      if (filters.search) {
+        var q = filters.search.toUpperCase();
+        var haystack = (row.sn + ' ' + row.model + ' ' + row.spec + ' ' + row.suplier).toUpperCase();
+        if (haystack.indexOf(q) === -1) continue;
+      }
+      if (filters.lokasi) {
+        if (row.lokasi !== filters.lokasi.toUpperCase()) continue;
+      }
+    }
+
+    // Parse numeric fields for margin calculation
+    var hb = parseHarga(row.hargaBeli);
+    var hj = parseHarga(row.hargaJual);
+    row.hargaBeliNum = hb;
+    row.hargaJualNum = hj;
+    row.margin = hj - hb;
+
+    items.push(row);
+  }
+
+  // Calculate summary stats
+  var totalSold = items.length;
+  var totalModal = 0;
+  var totalJual = 0;
+  var totalMargin = 0;
+  for (var j = 0; j < items.length; j++) {
+    totalModal += items[j].hargaBeliNum;
+    totalJual += items[j].hargaJualNum;
+    totalMargin += items[j].margin;
+  }
+
+  return {
+    ok: true,
+    items: items,
+    total: totalSold,
+    totalModal: totalModal,
+    totalJual: totalJual,
+    totalMargin: totalMargin
+  };
+}
+
+// --- DATABASE SOLD: Get available months ---
+function getSoldMonths() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Log_stok_sold');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getDisplayValues();
+  var months = {};
+  for (var i = 1; i < data.length; i++) {
+    var logDate = String(data[i][13] || '');
+    if (!logDate) continue;
+    var parts = logDate.split('/');
+    if (parts.length >= 2) {
+      var key = parts[1] + '/' + parts[2]; // MM/YYYY
+      months[key] = true;
+    }
+  }
+  return Object.keys(months).sort(function(a, b) {
+    // Sort descending (newest first)
+    var pa = a.split('/'), pb = b.split('/');
+    if (pa[1] !== pb[1]) return Number(pb[1]) - Number(pa[1]);
+    return Number(pb[0]) - Number(pa[0]);
+  });
 }
 
 // --- ONE-TIME FIX: Convert TEXT columns E/F/G/H to numbers ---
