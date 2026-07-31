@@ -910,6 +910,8 @@ function getPenjualanFiltered(startDate, endDate) {
 
     var start = parsePenjualanDate(startDate);
     var end = parsePenjualanDate(endDate);
+    // Set end to end of day (23:59:59) to include all times on that date
+    if (end) end.setHours(23, 59, 59, 999);
 
     // Collect all data rows
     var rows = [];
