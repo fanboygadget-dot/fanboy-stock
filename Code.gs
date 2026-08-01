@@ -126,6 +126,11 @@ function doGet(e) {
     var result = bulkUpdateModalVlookup();
     return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Modal');
   }
+  // Admin action: fix margin formulas + column D format
+  if (page === 'fix_margin') {
+    var result = bulkFixMarginFormulas();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix Margin');
+  }
   // Admin action: bulk update harga to Rupiah format
   if (page === 'bulk_update_rupiah') {
     var result = bulkUpdateHargaRupiah();
