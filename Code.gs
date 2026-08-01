@@ -1172,46 +1172,37 @@ function generatePenjualanExcel(startDate, endDate) {
 
     // === TAB BONUS PENJUALAN ===
     try {
-      var mainSs = SpreadsheetApp.openById(SS_ID);
-      var invSheet = mainSs.getSheetByName('Log_Penjualan_Invoice');
-      if (invSheet) {
-        var invData = invSheet.getDataRange().getValues();
-        // Parse date range
-        var startParts = startDate.split('/');
-        var endParts = endDate.split('/');
-        var startDateObj = new Date(parseInt(startParts[2]), parseInt(startParts[1])-1, parseInt(startParts[0]));
-        var endDateObj = new Date(parseInt(endParts[2]), parseInt(endParts[1])-1, parseInt(endParts[0]));
-        endDateObj.setHours(23, 59, 59, 999);
+      // Cari kolom Sales, Handle, Penjualan, Harga Awal dari headers
+      var hSales = -1, hHandle = -1, hPenjualan = -1, hModal = -1;
+      for (var c = 0; c < headers.length; c++) {
+        var hdr = String(headers[c] || '').toLowerCase().trim();
+        if (hdr === 'sales' && hSales < 0) hSales = c;
+        if (hdr === 'handle' && hHandle < 0) hHandle = c;
+        if (hdr.indexOf('penjualan') >= 0 && hPenjualan < 0) hPenjualan = c;
+        if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal') && hModal < 0) hModal = c;
+      }
 
-        var salesStats = {};  // name → {unit, omset, margin}
+      if (hSales >= 0 && hHandle >= 0) {
+        var salesStats = {};  // name → {unit, omset, keuntungan}
         var handlerStats = {};
 
-        for (var i = 1; i < invData.length; i++) {
-          var r = invData[i];
-          if (!r[0]) continue;
-          // Parse tanggal (index 5) - dd/MM/yyyy HH:mm
-          var tglRaw = String(r[5] || '');
-          var tglParts = tglRaw.split(' ')[0].split('/');
-          if (tglParts.length < 3) continue;
-          var rowDate = new Date(parseInt(tglParts[2]), parseInt(tglParts[1])-1, parseInt(tglParts[0]));
-          if (rowDate < startDateObj || rowDate > endDateObj) continue;
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          var sales = String(r[hSales] || '').trim() || '-';
+          var handler = String(r[hHandle] || '').trim() || '-';
+          var omset = hPenjualan >= 0 ? parseHarga(r[hPenjualan]) : 0;
+          var modal = hModal >= 0 ? parseHarga(r[hModal]) : 0;
+          var untung = omset - modal;
 
-          var harga = Number(String(r[4]||'0').replace(/[^0-9.-]/g,'')) || 0;
-          var modal = Number(String(r[3]||'0').replace(/[^0-9.-]/g,'')) || 0;
-          var margin = harga - modal;
-          var sales = String(r[6] || '').trim() || '-';
-          var handler = String(r[7] || '').trim() || '-';
-          var sn = String(r[1] || '').trim();
-
-          if (!salesStats[sales]) salesStats[sales] = {unit:0, omset:0, margin:0, items:[]};
+          if (!salesStats[sales]) salesStats[sales] = {unit:0, omset:0, keuntungan:0};
           salesStats[sales].unit++;
-          salesStats[sales].omset += harga;
-          salesStats[sales].margin += margin;
+          salesStats[sales].omset += omset;
+          salesStats[sales].keuntungan += untung;
 
-          if (!handlerStats[handler]) handlerStats[handler] = {unit:0, omset:0, margin:0, items:[]};
+          if (!handlerStats[handler]) handlerStats[handler] = {unit:0, omset:0, keuntungan:0};
           handlerStats[handler].unit++;
-          handlerStats[handler].omset += harga;
-          handlerStats[handler].margin += margin;
+          handlerStats[handler].omset += omset;
+          handlerStats[handler].keuntungan += untung;
         }
 
         // Create Bonus Penjualan sheet
@@ -1219,12 +1210,12 @@ function generatePenjualanExcel(startDate, endDate) {
 
         // -- Section 1: Per Sales --
         var salesArr = [];
-        for (var name in salesStats) salesArr.push({name:name, unit:salesStats[name].unit, omset:salesStats[name].omset, margin:salesStats[name].margin});
+        for (var name in salesStats) salesArr.push({name:name, unit:salesStats[name].unit, omset:salesStats[name].omset, keuntungan:salesStats[name].keuntungan});
         salesArr.sort(function(a,b){ return b.omset - a.omset; });
 
-        bonusSheet.getRange(1, 1).setValue('RINGKASAN PER SALES').setFontWeight('bold').setFontSize(13);
-        bonusSheet.getRange(1, 1, 1, 4).setBackground('#1a73e8').setFontColor('#fff').setFontWeight('bold');
-        bonusSheet.getRange(2, 1, 1, 4).setValues([['No', 'Sales', 'Unit Terjual', 'Total Omset']]).setFontWeight('bold').setBackground('#e8edf5');
+        bonusSheet.getRange(1, 1).setValue('RINCIAN BONUS SALES').setFontWeight('bold').setFontSize(14);
+        bonusSheet.getRange(1, 1, 1, 5).setBackground('#1a73e8').setFontColor('#fff').setFontWeight('bold');
+        bonusSheet.getRange(2, 1, 1, 5).setValues([['No', 'Nama Sales', 'Unit Terjual', 'Total Omset', 'Total Keuntungan']]).setFontWeight('bold').setBackground('#e8edf5');
 
         for (var s = 0; s < salesArr.length; s++) {
           var row = s + 3;
@@ -1232,25 +1223,27 @@ function generatePenjualanExcel(startDate, endDate) {
           bonusSheet.getRange(row, 2).setValue(salesArr[s].name);
           bonusSheet.getRange(row, 3).setValue(salesArr[s].unit).setNumberFormat('#,##0');
           bonusSheet.getRange(row, 4).setValue(salesArr[s].omset).setNumberFormat('Rp #,##0');
-          if (s % 2 === 0) bonusSheet.getRange(row, 1, 1, 4).setBackground('#f0f4ff');
+          bonusSheet.getRange(row, 5).setValue(salesArr[s].keuntungan).setNumberFormat('Rp #,##0');
+          if (s % 2 === 0) bonusSheet.getRange(row, 1, 1, 5).setBackground('#f0f4ff');
         }
         var salesTotalRow = salesArr.length + 3;
         bonusSheet.getRange(salesTotalRow, 1).setValue('TOTAL').setFontWeight('bold');
-        var totalSalesUnit = 0, totalSalesOmset = 0;
-        for (var s = 0; s < salesArr.length; s++) { totalSalesUnit += salesArr[s].unit; totalSalesOmset += salesArr[s].omset; }
-        bonusSheet.getRange(salesTotalRow, 3).setValue(totalSalesUnit).setFontWeight('bold').setNumberFormat('#,##0');
-        bonusSheet.getRange(salesTotalRow, 4).setValue(totalSalesOmset).setFontWeight('bold').setNumberFormat('Rp #,##0');
-        bonusSheet.getRange(salesTotalRow, 1, 1, 4).setBackground('#d4e4ff').setBorder(true,true,true,true,true,true);
+        var tSu=0,tSo=0,tSk=0;
+        for (var s=0;s<salesArr.length;s++){tSu+=salesArr[s].unit;tSo+=salesArr[s].omset;tSk+=salesArr[s].keuntungan;}
+        bonusSheet.getRange(salesTotalRow, 3).setValue(tSu).setFontWeight('bold').setNumberFormat('#,##0');
+        bonusSheet.getRange(salesTotalRow, 4).setValue(tSo).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        bonusSheet.getRange(salesTotalRow, 5).setValue(tSk).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        bonusSheet.getRange(salesTotalRow, 1, 1, 5).setBackground('#d4e4ff').setBorder(true,true,true,true,true,true);
 
         // -- Section 2: Per Handler --
         var handlerStartRow = salesTotalRow + 3;
         var handlerArr = [];
-        for (var name in handlerStats) handlerArr.push({name:name, unit:handlerStats[name].unit, omset:handlerStats[name].omset, margin:handlerStats[name].margin});
+        for (var name in handlerStats) handlerArr.push({name:name, unit:handlerStats[name].unit, omset:handlerStats[name].omset, keuntungan:handlerStats[name].keuntungan});
         handlerArr.sort(function(a,b){ return b.omset - a.omset; });
 
-        bonusSheet.getRange(handlerStartRow, 1).setValue('RINGKASAN PER HANDLER').setFontWeight('bold').setFontSize(13);
-        bonusSheet.getRange(handlerStartRow, 1, 1, 4).setBackground('#16a34a').setFontColor('#fff').setFontWeight('bold');
-        bonusSheet.getRange(handlerStartRow+1, 1, 1, 4).setValues([['No', 'Handler', 'Unit Handle', 'Total Omset']]).setFontWeight('bold').setBackground('#dcfce7');
+        bonusSheet.getRange(handlerStartRow, 1).setValue('RINCIAN BONUS HANDLER').setFontWeight('bold').setFontSize(14);
+        bonusSheet.getRange(handlerStartRow, 1, 1, 5).setBackground('#16a34a').setFontColor('#fff').setFontWeight('bold');
+        bonusSheet.getRange(handlerStartRow+1, 1, 1, 5).setValues([['No', 'Nama Handler', 'Unit Handle', 'Total Omset', 'Total Keuntungan']]).setFontWeight('bold').setBackground('#dcfce7');
 
         for (var h = 0; h < handlerArr.length; h++) {
           var row = handlerStartRow + h + 2;
@@ -1258,22 +1251,23 @@ function generatePenjualanExcel(startDate, endDate) {
           bonusSheet.getRange(row, 2).setValue(handlerArr[h].name);
           bonusSheet.getRange(row, 3).setValue(handlerArr[h].unit).setNumberFormat('#,##0');
           bonusSheet.getRange(row, 4).setValue(handlerArr[h].omset).setNumberFormat('Rp #,##0');
-          if (h % 2 === 0) bonusSheet.getRange(row, 1, 1, 4).setBackground('#f0fff4');
+          bonusSheet.getRange(row, 5).setValue(handlerArr[h].keuntungan).setNumberFormat('Rp #,##0');
+          if (h % 2 === 0) bonusSheet.getRange(row, 1, 1, 5).setBackground('#f0fff4');
         }
         var handlerTotalRow = handlerStartRow + handlerArr.length + 2;
         bonusSheet.getRange(handlerTotalRow, 1).setValue('TOTAL').setFontWeight('bold');
-        var totalHandlerUnit = 0, totalHandlerOmset = 0;
-        for (var h = 0; h < handlerArr.length; h++) { totalHandlerUnit += handlerArr[h].unit; totalHandlerOmset += handlerArr[h].omset; }
-        bonusSheet.getRange(handlerTotalRow, 3).setValue(totalHandlerUnit).setFontWeight('bold').setNumberFormat('#,##0');
-        bonusSheet.getRange(handlerTotalRow, 4).setValue(totalHandlerOmset).setFontWeight('bold').setNumberFormat('Rp #,##0');
-        bonusSheet.getRange(handlerTotalRow, 1, 1, 4).setBackground('#bbf7d0').setBorder(true,true,true,true,true,true);
+        var tHu=0,tHo=0,tHk=0;
+        for (var h=0;h<handlerArr.length;h++){tHu+=handlerArr[h].unit;tHo+=handlerArr[h].omset;tHk+=handlerArr[h].keuntungan;}
+        bonusSheet.getRange(handlerTotalRow, 3).setValue(tHu).setFontWeight('bold').setNumberFormat('#,##0');
+        bonusSheet.getRange(handlerTotalRow, 4).setValue(tHo).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        bonusSheet.getRange(handlerTotalRow, 5).setValue(tHk).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        bonusSheet.getRange(handlerTotalRow, 1, 1, 5).setBackground('#bbf7d0').setBorder(true,true,true,true,true,true);
 
         // Borders and auto-resize
-        bonusSheet.getRange(1, 1, handlerTotalRow, 4).setBorder(true,true,true,true,true,true);
-        for (var c = 1; c <= 4; c++) bonusSheet.autoResizeColumn(c);
+        bonusSheet.getRange(1, 1, handlerTotalRow, 5).setBorder(true,true,true,true,true,true);
+        for (var c = 1; c <= 5; c++) bonusSheet.autoResizeColumn(c);
       }
     } catch(bonusErr) {
-      // Bonus tab gagal, tapi tetap return laporan utama
       Logger.log('Bonus tab error: ' + bonusErr);
     }
 
