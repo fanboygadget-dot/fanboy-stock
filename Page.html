@@ -234,6 +234,7 @@
     }
     .user-badge .logout-btn:hover { color:#fff; }
     .nav-item.staff-hidden { display:none; }
+    .nav-download:hover { background:rgba(124,58,237,0.25) !important; color:#c4b5fd !important; }
   </style>
 </head>
 <body>
@@ -292,6 +293,9 @@
         </div>
         <div class="nav-item" onclick="switchPage('laporan')" data-page="laporan">
           <i class="fas fa-file-excel"></i> <span>Laporan Penjualan</span>
+        </div>
+        <div class="nav-item nav-download" onclick="switchPage('laporan');setTimeout(initPenjualanDates,100)" data-page="laporan" style="background:rgba(124,58,237,0.15);color:#a78bfa;border-left-color:#7c3aed">
+          <i class="fas fa-download" style="color:#7c3aed"></i> <span style="font-weight:600">Download Laporan</span>
         </div>
         <div class="nav-item" onclick="switchPage('geser')" data-page="geser">
           <i class="fas fa-exchange-alt"></i> <span>Geser Stok</span>
