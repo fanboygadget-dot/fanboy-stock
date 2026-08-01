@@ -67,8 +67,31 @@ function bulkFixMarginFormulas() {
   var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
+  var numRows = lastRow - 1;
 
-  // Fix column D: VLOOKUP with Rp strip + number format
+  // Fix columns E, M, N: convert "Rp X.XXX" text to numbers
+  var cols = [5, 13, 14]; // E, M, N
+  var converted = 0;
+  for (var c = 0; c < cols.length; c++) {
+    var col = cols[c];
+    var range = sheet.getRange(2, col, numRows, 1);
+    var values = range.getValues();
+    var changed = false;
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i][0];
+      if (typeof v === 'string' && v.indexOf('Rp') !== -1) {
+        values[i][0] = Number(v.replace(/[^0-9]/g, '')) || 0;
+        changed = true;
+        converted++;
+      }
+    }
+    if (changed) {
+      range.setValues(values);
+      range.setNumberFormat('Rp #,##0');
+    }
+  }
+
+  // Fix column D: VLOOKUP dual sheet
   var dFormulas = [];
   for (var r = 2; r <= lastRow; r++) {
     dFormulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B' + r + ',Log_stok_sold!A:E,5,FALSE),0))']);
@@ -76,14 +99,15 @@ function bulkFixMarginFormulas() {
   sheet.getRange(2, 4, dFormulas.length, 1).setFormulas(dFormulas);
   sheet.getRange(2, 4, dFormulas.length, 1).setNumberFormat('#,##0');
 
-  // Fix margin formula (col J = 10) for all rows: parse "Rp X.XXX" text in E
+  // Fix margin formula: simple E - D
   var marginFormulas = [];
   for (var r = 2; r <= lastRow; r++) {
-    marginFormulas.push(['=VALUE(SUBSTITUTE(SUBSTITUTE(E' + r + ',"Rp ",""),".",""))-D' + r]);
+    marginFormulas.push(['=E' + r + '-D' + r]);
   }
   sheet.getRange(2, 10, marginFormulas.length, 1).setFormulas(marginFormulas);
+  sheet.getRange(2, 10, marginFormulas.length, 1).setNumberFormat('#,##0');
 
-  return {ok: true, updated: marginFormulas.length, msg: 'Berhasil fix ' + marginFormulas.length + ' baris margin'};
+  return {ok: true, updated: numRows, converted: converted, msg: 'Berhasil fix ' + numRows + ' baris, konversi ' + converted + ' cell text→angka'};
 }
 
 // --- BULK UPDATE HARGA TO RUPIAH FORMAT ---
@@ -580,13 +604,16 @@ function createInvoice(data) {
     if (/^\d[\d.,\s]*$/.test(catatan.replace(/rp\s*/gi, '').trim())) catatan = '';
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
-    invSheet.appendRow([nextNo, sn, buyerHP, '', formatRupiah(harga), today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', formatRupiah(dpAmount), formatRupiah(sisaBayar), catatan]);
+    invSheet.appendRow([nextNo, sn, buyerHP, '', harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
     // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
     var newRow = invSheet.getLastRow();
+    invSheet.getRange(newRow, 5).setNumberFormat('Rp #,##0');
+    invSheet.getRange(newRow, 13).setNumberFormat('Rp #,##0');
+    invSheet.getRange(newRow, 14).setNumberFormat('Rp #,##0');
     invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+newRow+',Log_stok_sold!A:E,5,FALSE),0))');
     invSheet.getRange(newRow, 4).setNumberFormat('#,##0');
     // Margin = Harga (E) - Modal/D (D) — E berformat "Rp X.XXX" jadi perlu di-parse dulu
-    invSheet.getRange(newRow, 10).setFormula('=VALUE(SUBSTITUTE(SUBSTITUTE(E'+newRow+',"Rp ",""),".",""))-D'+newRow);
+    invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
     
     // Update status to Sold
     stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
@@ -653,7 +680,11 @@ function createInvoice(data) {
     ]);
 
     // Log trade-in in invoice sheet
-    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', formatRupiah(ti.hargaBeli), today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', '']);
+    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', Number(ti.hargaBeli)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
+    var tiRow = invSheet.getLastRow();
+    invSheet.getRange(tiRow, 5).setNumberFormat('Rp #,##0');
+    invSheet.getRange(tiRow, 13).setNumberFormat('Rp #,##0');
+    invSheet.getRange(tiRow, 14).setNumberFormat('Rp #,##0');
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var tiRow = invSheet.getLastRow();
     invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+tiRow+',Log_stok_sold!A:E,5,FALSE),0))');
@@ -1130,7 +1161,7 @@ function updateInvoicePrice(data) {
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
-      invSheet.getRange(i + 1, 5).setValue(formatRupiah(parseHarga(data.newHarga)));
+      var newHargaNum = parseHarga(data.newHarga); invSheet.getRange(i + 1, 5).setValue(newHargaNum).setNumberFormat('Rp #,##0');
       return {ok: true, msg: 'Harga diupdate'};
     }
   }
@@ -1162,7 +1193,7 @@ function updateTradeInPrice(data) {
     var invNo = String(rows[i][0] || '');
     var sn = String(rows[i][1] || '').toUpperCase();
     if (invNo === data.invNo && sn === data.sn.toUpperCase()) {
-      invSheet.getRange(i + 1, 5).setValue(formatRupiah(parseHarga(data.newHarga)));
+      var newHargaNum = parseHarga(data.newHarga); invSheet.getRange(i + 1, 5).setValue(newHargaNum).setNumberFormat('Rp #,##0');
       return {ok: true, msg: 'Harga Trade-In diupdate'};
     }
   }
@@ -1249,8 +1280,8 @@ function markInvoiceLunas(data) {
       var harga = parseHarga(rows[i][4]);
       // Update: status=Lunas, dp=harga(full), sisa=0
       invSheet.getRange(i + 1, 9).setValue('Lunas');   // col 9 = Status_Pembayaran (I)
-      invSheet.getRange(i + 1, 12).setValue(formatRupiah(harga));     // col 12 = dp (full amount now paid)
-      invSheet.getRange(i + 1, 13).setValue('Rp 0');          // col 13 = sisa
+      invSheet.getRange(i + 1, 12).setValue(harga).setNumberFormat('Rp #,##0');     // col 12 = dp (full amount now paid)
+      invSheet.getRange(i + 1, 13).setValue(0).setNumberFormat('Rp #,##0');          // col 13 = sisa
       return {ok: true, msg: 'Invoice ditandai LUNAS'};
     }
   }
@@ -1649,7 +1680,11 @@ function createTradeIn(data) {
   // Log each BELI item as separate row: [invNo, SN, buyer, modal=VLOOKUP, harga, tanggal, sales, handler, status, ...]
   for (var b = 0; b < data.beliItems.length; b++) {
     var bi = data.beliItems[b];
-    invSheet.appendRow([invNo, bi.sn, data.buyer||'', '', formatRupiah(Number(bi.harga)||0), today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', tukarNote]);
+    invSheet.appendRow([invNo, bi.sn, data.buyer||'', '', Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, tukarNote]);
+    var bRow = invSheet.getLastRow();
+    invSheet.getRange(bRow, 5).setNumberFormat('Rp #,##0');
+    invSheet.getRange(bRow, 13).setNumberFormat('Rp #,##0');
+    invSheet.getRange(bRow, 14).setNumberFormat('Rp #,##0');
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var bRow = invSheet.getLastRow();
     invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+bRow+',Log_stok_sold!A:E,5,FALSE),0))');
