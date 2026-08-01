@@ -56,8 +56,29 @@ function bulkUpdateModalVlookup() {
     formulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),0)']);
   }
   sheet.getRange(2, 4, formulas.length, 1).setFormulas(formulas);
+  sheet.getRange(2, 4, formulas.length, 1).setNumberFormat('#,##0');
   
   return {ok: true, updated: formulas.length, msg: 'Berhasil update ' + formulas.length + ' baris'};
+}
+
+// --- BULK FIX MARGIN FORMULAS ---
+function bulkFixMarginFormulas() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
+
+  // Fix column D number format
+  sheet.getRange(2, 4, lastRow - 1, 1).setNumberFormat('#,##0');
+
+  // Fix margin formula (col J = 10) for all rows: parse "Rp X.XXX" text in E
+  var marginFormulas = [];
+  for (var r = 2; r <= lastRow; r++) {
+    marginFormulas.push(['=VALUE(SUBSTITUTE(SUBSTITUTE(E' + r + ',"Rp ",""),".",""))-D' + r]);
+  }
+  sheet.getRange(2, 10, marginFormulas.length, 1).setFormulas(marginFormulas);
+
+  return {ok: true, updated: marginFormulas.length, msg: 'Berhasil fix ' + marginFormulas.length + ' baris margin'};
 }
 
 // --- BULK UPDATE HARGA TO RUPIAH FORMAT ---
@@ -553,8 +574,9 @@ function createInvoice(data) {
     // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
     var newRow = invSheet.getLastRow();
     invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
-    // Margin = Harga (E) - Modal/D (D)
-    invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
+    invSheet.getRange(newRow, 4).setNumberFormat('#,##0');
+    // Margin = Harga (E) - Modal/D (D) — E berformat "Rp X.XXX" jadi perlu di-parse dulu
+    invSheet.getRange(newRow, 10).setFormula('=VALUE(SUBSTITUTE(SUBSTITUTE(E'+newRow+',"Rp ",""),".",""))-D'+newRow);
     
     // Update status to Sold
     stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
@@ -625,6 +647,7 @@ function createInvoice(data) {
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var tiRow = invSheet.getLastRow();
     invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    invSheet.getRange(tiRow, 4).setNumberFormat('#,##0');
 
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
   }
@@ -1620,6 +1643,7 @@ function createTradeIn(data) {
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var bRow = invSheet.getLastRow();
     invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    invSheet.getRange(bRow, 4).setNumberFormat('#,##0');
   }
 
   return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded, tukarSkipped: tukarSkipped || []};
