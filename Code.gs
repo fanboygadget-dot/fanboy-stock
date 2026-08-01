@@ -1170,6 +1170,95 @@ function generatePenjualanExcel(startDate, endDate) {
 
     var url = ss.getUrl();
 
+    // === GRAFIK PENJUALAN PER TOKO CABANG ===
+    try {
+      var hToko = -1, hPenjGrafik = -1, hNamaBarang = -1;
+      for (var c = 0; c < headers.length; c++) {
+        var hdr = String(headers[c] || '').toLowerCase().trim();
+        if (hdr === 'toko' && hToko < 0) hToko = c;
+        if (hdr.indexOf('penjualan') >= 0 && hPenjGrafik < 0) hPenjGrafik = c;
+        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarang < 0) hNamaBarang = c;
+      }
+
+      if (hToko >= 0) {
+        // Aggregate per toko
+        var tokoStats = {};  // toko → {unit, omset, items:[]}
+        for (var i = 0; i < rows.length; i++) {
+          var toko = String(rows[i][hToko] || '').trim() || '-';
+          var omset = hPenjGrafik >= 0 ? parseHarga(rows[i][hPenjGrafik]) : 0;
+          if (!tokoStats[toko]) tokoStats[toko] = {unit: 0, omset: 0};
+          tokoStats[toko].unit++;
+          tokoStats[toko].omset += omset;
+        }
+
+        var tokoArr = [];
+        for (var t in tokoStats) tokoArr.push({toko: t, unit: tokoStats[t].unit, omset: tokoStats[t].omset});
+        tokoArr.sort(function(a, b) { return b.omset - a.omset; });
+
+        // Write summary table below data
+        var chartStartRow = sr + 3;
+        sheet.getRange(chartStartRow, 1).setValue('RINGKASAN PER TOKO CABANG').setFontWeight('bold').setFontSize(13);
+        sheet.getRange(chartStartRow, 1, 1, 4).setBackground('#1a73e8').setFontColor('#fff').setFontWeight('bold');
+        sheet.getRange(chartStartRow + 1, 1, 1, 4).setValues([['No', 'Toko Cabang', 'Unit Terjual', 'Total Omset']]).setFontWeight('bold').setBackground('#e8edf5');
+
+        for (var t = 0; t < tokoArr.length; t++) {
+          var row = chartStartRow + t + 2;
+          sheet.getRange(row, 1).setValue(t + 1);
+          sheet.getRange(row, 2).setValue(tokoArr[t].toko);
+          sheet.getRange(row, 3).setValue(tokoArr[t].unit).setNumberFormat('#,##0');
+          sheet.getRange(row, 4).setValue(tokoArr[t].omset).setNumberFormat('Rp #,##0');
+          if (t % 2 === 0) sheet.getRange(row, 1, 1, 4).setBackground('#f0f4ff');
+        }
+
+        var tokoTotalRow = chartStartRow + tokoArr.length + 2;
+        sheet.getRange(tokoTotalRow, 1).setValue('TOTAL').setFontWeight('bold');
+        var tU = 0, tO = 0;
+        for (var t = 0; t < tokoArr.length; t++) { tU += tokoArr[t].unit; tO += tokoArr[t].omset; }
+        sheet.getRange(tokoTotalRow, 3).setValue(tU).setFontWeight('bold').setNumberFormat('#,##0');
+        sheet.getRange(tokoTotalRow, 4).setValue(tO).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        sheet.getRange(tokoTotalRow, 1, 1, 4).setBackground('#d4e4ff').setBorder(true, true, true, true, true, true);
+
+        // Border untuk tabel ringkasan
+        sheet.getRange(chartStartRow, 1, tokoArr.length + 3, 4).setBorder(true, true, true, true, true, true);
+
+        // Chart 1: Unit Terjual per Toko (Bar Chart)
+        if (tokoArr.length > 0) {
+          var dataRange1 = sheet.getRange(chartStartRow + 1, 2, tokoArr.length + 1, 2); // Toko + Unit
+          var chart1 = sheet.newChart()
+            .setChartType(Charts.ChartType.BAR)
+            .addRange(dataRange1)
+            .setPosition(chartStartRow, 6, 0, 0)
+            .setOption('title', 'Unit Terjual per Toko Cabang')
+            .setOption('width', 500)
+            .setOption('height', 300)
+            .setOption('legend', {position: 'none'})
+            .setOption('colors', ['#1a73e8'])
+            .setOption('hAxis', {title: 'Unit Terjual'})
+            .build();
+          sheet.insertChart(chart1);
+
+          // Chart 2: Total Omset per Toko (Bar Chart)
+          var dataRange2 = sheet.getRange(chartStartRow + 1, 2, tokoArr.length + 1, 1); // Toko
+          var dataRange2b = sheet.getRange(chartStartRow + 1, 4, tokoArr.length + 1, 1); // Omset
+          var chart2 = sheet.newChart()
+            .setChartType(Charts.ChartType.BAR)
+            .addRange(dataRange2)
+            .addRange(dataRange2b)
+            .setPosition(chartStartRow + 16, 6, 0, 0)
+            .setOption('title', 'Total Omset per Toko Cabang')
+            .setOption('width', 500)
+            .setOption('height', 300)
+            .setOption('legend', {position: 'none'})
+            .setOption('colors', ['#16a34a'])
+            .setOption('hAxis', {title: 'Total Omset (Rp)', format: 'Rp #,##0'})
+            .build();
+          sheet.insertChart(chart2);
+        }
+      }
+    } catch(chartErr) {
+      Logger.log('Chart error: ' + chartErr);
+    }
+
     // === TAB BONUS PENJUALAN ===
     try {
       // Cari kolom Sales, Handle, Penjualan, Harga Awal dari headers

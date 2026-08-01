@@ -36,14 +36,14 @@ if [ -z "$DEPLOY_ID" ]; then
 fi
 
 SCRIPT_ID=$(python3 -c "import json; print(json.load(open('.clasp.json'))['scriptId'])")
-DEPLOY_URL="https://script.google.com/macros/s/${DEPLOY_ID}/exec"
+DEPLOY_URL="https://script.google.com/macros/s/AKfycbyWn03T0CxzkPNQh892D59gnfNpYMm5TsuL0ULNV7M9Rv5xFbvdlYWwcjWnU8F_q4kr/exec"
 
 echo ""
 echo "=== Step 3: Update index.html with new URL ==="
 echo "New deploy URL: $DEPLOY_URL"
 
 # Update index.html
-sed -i "s|https://script.google.com/macros/s/[^ ]*/exec|${DEPLOY_URL}|" index.html
+sed -i "s|https://script.google.com/macros/s/AKfycbyWn03T0CxzkPNQh892D59gnfNpYMm5TsuL0ULNV7M9Rv5xFbvdlYWwcjWnU8F_q4kr/exec|${DEPLOY_URL}|" index.html
 # Also update the display text link
 sed -i "s|href=\"https://script.google.com/macros/s/[^\"]*\"|href=\"${DEPLOY_URL}\"|" index.html
 
