@@ -21,6 +21,37 @@ function formatRupiah(n) {
   return 'Rp ' + String(Number(n)).replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
 }
 
+// Custom function for spreadsheet: lookup modal by SN from both sheets
+function getModalBySN(sn) {
+  if (!sn) return 0;
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var lookup = String(sn).trim().toLowerCase();
+  
+  // Try Inventaris_Laptop first
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  if (sheet) {
+    var data = sheet.getRange(1, 1, sheet.getLastRow(), 5).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === lookup) {
+        return parseHarga(data[i][4]); // col E = Harga_Beli
+      }
+    }
+  }
+  
+  // Fallback to Log_stok_sold
+  sheet = ss.getSheetByName('Log_stok_sold');
+  if (sheet) {
+    var data = sheet.getRange(1, 1, sheet.getLastRow(), 5).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === lookup) {
+        return parseHarga(data[i][4]);
+      }
+    }
+  }
+  
+  return 0;
+}
+
 // Read sheet data as displayed strings (no auto Date conversion)
 function getRawSheetData(sheetName, range) {
   var ss = SpreadsheetApp.openById(SS_ID);
@@ -53,7 +84,7 @@ function bulkUpdateModalVlookup() {
   // Set VLOOKUP formula di kolom D (Modal) untuk semua baris data (row 2 sampai lastRow)
   var formulas = [];
   for (var r = 2; r <= lastRow; r++) {
-    formulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B' + r + ',Log_stok_sold!A:E,5,FALSE),0))']);
+    formulas.push(['=getModalBySN(B' + r + ')']);
   }
   sheet.getRange(2, 4, formulas.length, 1).setFormulas(formulas);
   sheet.getRange(2, 4, formulas.length, 1).setNumberFormat('#,##0');
@@ -94,7 +125,7 @@ function bulkFixMarginFormulas() {
   // Fix column D: VLOOKUP dual sheet
   var dFormulas = [];
   for (var r = 2; r <= lastRow; r++) {
-    dFormulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B' + r + ',Log_stok_sold!A:E,5,FALSE),0))']);
+    dFormulas.push(['=getModalBySN(B' + r + ')']);
   }
   sheet.getRange(2, 4, dFormulas.length, 1).setFormulas(dFormulas);
   sheet.getRange(2, 4, dFormulas.length, 1).setNumberFormat('#,##0');
@@ -610,7 +641,7 @@ function createInvoice(data) {
     invSheet.getRange(newRow, 5).setNumberFormat('Rp #,##0');
     invSheet.getRange(newRow, 13).setNumberFormat('Rp #,##0');
     invSheet.getRange(newRow, 14).setNumberFormat('Rp #,##0');
-    invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+newRow+',Log_stok_sold!A:E,5,FALSE),0))');
+    invSheet.getRange(newRow, 4).setFormula('=getModalBySN(B'+newRow+')');
     invSheet.getRange(newRow, 4).setNumberFormat('#,##0');
     // Margin = Harga (E) - Modal/D (D) — E berformat "Rp X.XXX" jadi perlu di-parse dulu
     invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
@@ -687,7 +718,7 @@ function createInvoice(data) {
     invSheet.getRange(tiRow, 14).setNumberFormat('Rp #,##0');
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var tiRow = invSheet.getLastRow();
-    invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+tiRow+',Log_stok_sold!A:E,5,FALSE),0))');
+    invSheet.getRange(tiRow, 4).setFormula('=getModalBySN(B'+tiRow+')');
     invSheet.getRange(tiRow, 4).setNumberFormat('#,##0');
 
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
@@ -1687,7 +1718,7 @@ function createTradeIn(data) {
     invSheet.getRange(bRow, 14).setNumberFormat('Rp #,##0');
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var bRow = invSheet.getLastRow();
-    invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),IFERROR(VLOOKUP(B'+bRow+',Log_stok_sold!A:E,5,FALSE),0))');
+    invSheet.getRange(bRow, 4).setFormula('=getModalBySN(B'+bRow+')');
     invSheet.getRange(bRow, 4).setNumberFormat('#,##0');
   }
 
