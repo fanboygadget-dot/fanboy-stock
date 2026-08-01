@@ -6,9 +6,9 @@ var SS_ID = '1BB9PaP_iLoM9A1uYWXAZtnDYKqgfmVNJwi4Q5XraO-0';
 
 // Kolom Inventaris_Laptop:
 // 0=ID_Laptop 1=Merk_Model 2=Spesifikasi 3=Kondisi 4=Harga_Beli
-// 5=Biaya_Servis 6=Total_Modal 7=Harga_Jual 8=Status
-// 9=Tanggal_Masuk 10=Suplier 11=Lokasi_Saat_Ini 12=history_lokasi
-// 13=Staff_input 14=Staff_handle 15=Foto_Barang
+// 5=Harga_Jual 6=Status
+// 7=Tanggal_Masuk 8=Suplier 9=Lokasi_Saat_Ini 10=history_lokasi
+// 11=Staff_input 12=Staff_handle 13=Foto_Barang
 
 // Helper: parse "Rp2,800,000" → 2800000
 function parseHarga(s) {
@@ -24,10 +24,10 @@ function formatRupiah(n) {
 // Custom function for spreadsheet: lookup modal by SN from both sheets
 function getModalBySN(sn) {
   if (!sn) return 0;
-  var ss = SpreadsheetApp.openById(SS_ID);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   var lookup = String(sn).trim().toLowerCase();
   
-  // Try Inventaris_Laptop first
+  // Try Inventaris_Laptop first (ID_Laptop = kolom A, Harga_Beli = kolom E)
   var sheet = ss.getSheetByName('Inventaris_Laptop');
   if (sheet) {
     var data = sheet.getRange(1, 1, sheet.getLastRow(), 5).getValues();
@@ -229,8 +229,8 @@ function getCounts() {
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var counts = {};
   for (var i = 1; i < data.length; i++) {
-    var loc = String(data[i][11] || '').toUpperCase().trim();
-    var st = String(data[i][8] || '').trim();
+    var loc = String(data[i][9] || '').toUpperCase().trim();
+    var st = String(data[i][6] || '').trim();
     if (!loc || !st) continue;
     if (!counts[loc]) counts[loc] = {};
     counts[loc][st] = (counts[loc][st] || 0) + 1;
@@ -244,15 +244,15 @@ function getItems(loc, st) {
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var items = [];
   for (var i = 1; i < data.length; i++) {
-    var rLoc = String(data[i][11] || '').toUpperCase().trim();
-    var rSt = String(data[i][8] || '').trim();
+    var rLoc = String(data[i][9] || '').toUpperCase().trim();
+    var rSt = String(data[i][6] || '').trim();
     if (rLoc === loc.toUpperCase() && rSt === st) {
       items.push({
         sn: String(data[i][0] || ''),
         model: String(data[i][1] || ''),
         spec: String(data[i][2] || ''),
         modal: parseHarga(data[i][4]),
-        harga: parseHarga(data[i][7]),
+        harga: parseHarga(data[i][5]),
         status: rSt,
         lokasi: rLoc
       });
@@ -272,9 +272,9 @@ function getItem(sn) {
         model: String(data[i][1] || ''),
         spec: String(data[i][2] || ''),
         modal: parseHarga(data[i][4]),
-        harga: parseHarga(data[i][7]),
-        status: String(data[i][8] || ''),
-        lokasi: String(data[i][11] || '').toUpperCase().trim()
+        harga: parseHarga(data[i][5]),
+        status: String(data[i][6] || ''),
+        lokasi: String(data[i][9] || '').toUpperCase().trim()
       };
     }
   }
@@ -296,9 +296,9 @@ function searchAll(q) {
         sn: String(row[0] || ''),
         model: String(row[1] || ''),
         spec: String(row[2] || ''),
-        harga: parseHarga(row[7]),
-        status: String(row[8] || ''),
-        lokasi: String(row[11] || '').toUpperCase().trim()
+        harga: parseHarga(row[5]),
+        status: String(row[6] || ''),
+        lokasi: String(row[9] || '').toUpperCase().trim()
       });
     }
   }
@@ -330,7 +330,7 @@ function addStock(d) {
     // 13=Staff_input 14=Staff_handle 15=Foto_Barang
     sheet.appendRow([
       sn, d.model||'', d.spec||'', d.kondisi||'',
-      hargaBeli, 0, hargaBeli, hargaJual,
+      hargaBeli, hargaJual,
       'Available', today, d.suplier||'', (d.lokasi||'JOGJA').toUpperCase(),
       '', staff, '', ''
     ]);
@@ -365,7 +365,7 @@ function batchAddStock(items) {
     var staff = d.staff || 'Web';
     sheet.appendRow([
       d.sn, d.model, d.spec||'', d.kondisi||'',
-      hargaBeli, 0, hargaBeli, hargaJual,
+      hargaBeli, hargaJual,
       'Available', today, d.suplier||'', d.lokasi.toUpperCase(),
       '', staff, '', ''
     ]);
@@ -379,19 +379,15 @@ function batchAddStock(items) {
 
 // --- TRANSFER STOCK ---
 // --- UPDATE MODAL STOK LAPTOP ---
-function updateModalStok(sn, hargaBeli, biayaServis) {
+function updateModalStok(sn, hargaBeli) {
   var ss = SpreadsheetApp.openById(SS_ID);
   var sheet = ss.getSheetByName('Inventaris_Laptop');
   var rows = sheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).toUpperCase() === sn.toUpperCase()) {
       var hb = Number(String(hargaBeli).replace(/[^0-9]/g, '')) || 0;
-      var bs = Number(String(biayaServis).replace(/[^0-9]/g, '')) || 0;
-      var total = hb + bs;
       sheet.getRange(i + 1, 5).setValue(hb);   // E: Harga_Beli
-      sheet.getRange(i + 1, 6).setValue(bs);   // F: Biaya_Servis
-      sheet.getRange(i + 1, 7).setValue(total); // G: Total_Modal
-      return {ok: true, msg: 'Modal diupdate: ' + sn + ' (Total: Rp' + formatNumber(total) + ')'};
+      return {ok: true, msg: 'Modal diupdate: ' + sn + ' (Rp' + formatNumber(hb) + ')'};
     }
   }
   return {ok: false, msg: 'SN tidak ditemukan'};
@@ -438,11 +434,9 @@ function getItemDetail(sn) {
         model: String(rows[i][1] || ''),
         spec: String(rows[i][2] || ''),
         hargaBeli: parseHarga(rows[i][4]),
-        biayaServis: parseHarga(rows[i][5]),
-        totalModal: parseHarga(rows[i][6]),
-        hargaJual: parseHarga(rows[i][7]),
-        status: String(rows[i][8] || ''),
-        lokasi: String(rows[i][11] || '').toUpperCase().trim()
+        hargaJual: parseHarga(rows[i][5]),
+        status: String(rows[i][6] || ''),
+        lokasi: String(rows[i][9] || '').toUpperCase().trim()
       };
     }
   }
@@ -462,9 +456,9 @@ function getItemForBuyback(sn) {
         spec: String(rows[i][2]||''),
         kondisi: String(rows[i][3]||''),
         hargaBeli: parseHarga(rows[i][4]),
-        hargaJual: parseHarga(rows[i][7]),
-        status: String(rows[i][8]||''),
-        lokasi: String(rows[i][11]||'').toUpperCase().trim()
+        hargaJual: parseHarga(rows[i][5]),
+        status: String(rows[i][6]||''),
+        lokasi: String(rows[i][9]||'').toUpperCase().trim()
       };
     }
   }
@@ -479,25 +473,23 @@ function processBuyback(data) {
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).toUpperCase() === sn) {
-      var currentStatus = String(rows[i][8]||'');
+      var currentStatus = String(rows[i][6]||'');
       if (currentStatus === 'Available') return {ok:false, msg:'SN masih Available, tidak perlu buyback'};
       
       var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
       var hargaBeli = Number(String(data.hargaBeli).replace(/[^0-9]/g,'')) || 0;
-      var hargaJual = data.hargaJual ? Number(String(data.hargaJual).replace(/[^0-9]/g,'')) : parseHarga(rows[i][7]);
-      var lokasi = data.lokasi || String(rows[i][11]||'');
+      var hargaJual = data.hargaJual ? Number(String(data.hargaJual).replace(/[^0-9]/g,'')) : parseHarga(rows[i][5]);
+      var lokasi = data.lokasi || String(rows[i][9]||'');
       var kondisi = data.kondisi || String(rows[i][3]||'');
       var row = i + 1;
       
       // Update: status=Available, hargaBeli=deal buyback, hargaJual, lokasi, kondisi, tanggalMasuk, history
       sheet.getRange(row, 5).setValue(hargaBeli);  // E: Harga Beli
-      sheet.getRange(row, 6).setValue(0);           // F: Biaya Servis
-      sheet.getRange(row, 7).setValue(hargaBeli);   // G: Total Modal
-      sheet.getRange(row, 8).setValue(hargaJual);   // H: Harga Jual
-      sheet.getRange(row, 9).setValue('Available');  // I: Status
-      sheet.getRange(row, 10).setValue(today);       // J: Tanggal Masuk
-      sheet.getRange(row, 12).setValue(lokasi);      // L: Lokasi
-      sheet.getRange(row, 13).setValue(today + ' | Buyback dari customer (Rp' + formatNumber(hargaBeli) + ')'); // M: History
+      sheet.getRange(row, 6).setValue(hargaJual);   // F: Harga Jual
+      sheet.getRange(row, 7).setValue('Available');  // G: Status
+      sheet.getRange(row, 8).setValue(today);       // H: Tanggal Masuk
+      sheet.getRange(row, 10).setValue(lokasi);      // J: Lokasi
+      sheet.getRange(row, 11).setValue(today + ' | Buyback dari customer (Rp' + formatNumber(hargaBeli) + ')'); // K: History
       
       return {ok:true, msg:'Buyback berhasil: ' + sn + ' (Rp' + formatNumber(hargaBeli) + ')'};
     }
@@ -513,7 +505,7 @@ function updateHargaJual(sn, hargaJual) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).toUpperCase() === sn.toUpperCase()) {
       var hj = Number(String(hargaJual).replace(/[^0-9]/g, '')) || 0;
-      sheet.getRange(i + 1, 8).setValue(hj); // H: Harga_Jual
+      sheet.getRange(i + 1, 6).setValue(hj); // F: Harga_Jual
       return {ok: true, msg: 'Harga jual diupdate: ' + sn + ' (Rp' + formatNumber(hj) + ')'};
     }
   }
@@ -529,12 +521,12 @@ function updateStockField(data) {
   var rows = sheet.getDataRange().getValues();
   var fieldMap = {
     'model': 1, 'spec': 2, 'kondisi': 3, 'hargaBeli': 4, 'hargaJual': 5,
-    'suplier': 6, 'lokasi': 7, 'status': 8
+    'suplier': 8, 'lokasi': 9, 'status': 6
   };
-  // Correct column mapping based on actual sheet:
-  // A=SN(0), B=Model(1), C=Spec(2), D=Kondisi(3), E=Harga_Beli(4), F=Harga_Jual(5), G=Suplier(6), H=Lokasi(7)
+  // Column mapping after removing Biaya_Servis/Total_Modal:
+  // A=SN(0), B=Model(1), C=Spec(2), D=Kondisi(3), E=Harga_Beli(4), F=Harga_Jual(5), G=Status(6), H=TglMasuk(7), I=Suplier(8), J=Lokasi(9)
   fieldMap = {
-    'hargaBeli': 4, 'hargaJual': 5, 'spec': 2, 'lokasi': 7, 'suplier': 6, 'kondisi': 3
+    'hargaBeli': 4, 'hargaJual': 5, 'spec': 2, 'lokasi': 9, 'suplier': 8, 'kondisi': 3
   };
   var col = fieldMap[data.field];
   if (col === undefined) return {ok: false, msg: 'Field tidak valid: ' + data.field};
@@ -558,8 +550,8 @@ function getStockCountsByLocation() {
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var counts = {};
   for (var i = 1; i < data.length; i++) {
-    var loc = String(data[i][11] || '').toUpperCase().trim();
-    var st = String(data[i][8] || '').trim();
+    var loc = String(data[i][9] || '').toUpperCase().trim();
+    var st = String(data[i][6] || '').trim();
     if (!loc || !st) continue;
     if (!counts[loc]) counts[loc] = {total:0, Available:0, Sold:0, Servis:0, Reserved:0};
     counts[loc].total++;
@@ -608,8 +600,8 @@ function createInvoice(data) {
       if (String(rows[i][0]).toUpperCase() === sn.toUpperCase()) {
         item = {
           sn: String(rows[i][0]||''), model: String(rows[i][1]||''), spec: String(rows[i][2]||''),
-          modal: parseHarga(rows[i][4]), harga: parseHarga(rows[i][7]),
-          status: String(rows[i][8]||''), lokasi: String(rows[i][11]||'').toUpperCase().trim()
+          modal: parseHarga(rows[i][4]), harga: parseHarga(rows[i][5]),
+          status: String(rows[i][6]||''), lokasi: String(rows[i][9]||'').toUpperCase().trim()
         };
         rowIndex = i;
         break;
@@ -647,7 +639,7 @@ function createInvoice(data) {
     invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
     
     // Update status to Sold
-    stSheet.getRange(rowIndex + 1, 9).setValue('Sold');
+    stSheet.getRange(rowIndex + 1, 7).setValue('Sold');
     
     resultItems.push({sn:sn, model:item.model, spec:item.spec, harga:harga, ok:true, msg:'Berhasil'});
     invItems.push({sn:sn, model:item.model, spec:item.spec, lokasi:item.lokasi, harga:harga});
@@ -704,7 +696,7 @@ function createInvoice(data) {
     var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy');
     stSheet.appendRow([
       ti.sn, ti.model, ti.spec || '', ti.kondisi || 'Baik',
-      ti.hargaBeli, 0, ti.hargaBeli, ti.hargaBeli, 'Available',
+      ti.hargaBeli, ti.hargaBeli, 'Available',
       now, 'Trade-In', tradeInLoc,
       now + ' | Trade-In dari ' + (data.buyer||'Customer'),
       '', (data.handler||'Staff')
@@ -1338,7 +1330,7 @@ function getInvoiceData(invoiceNo, snParam) {
           if (String(stData[j][0]).toUpperCase() === sn.toUpperCase()) {
             if (isTradeIn) {
               // Prefer Sold status for trade-in (original entry)
-              var st = String(stData[j][8] || '').toUpperCase();
+              var st = String(stData[j][6] || '').toUpperCase();
               if (st === 'SOLD') { bestIdx = j; break; }
             }
             if (bestIdx < 0) bestIdx = j;
@@ -1386,10 +1378,10 @@ function getInvoiceData(invoiceNo, snParam) {
         var invDataAll = getRawSheetData('Inventaris_Laptop');
         var hargaBeli = parseHarga(invData[i][4]);
         for (var j = 1; j < invDataAll.length; j++) {
-          var suplier = String(invDataAll[j][10] || '').toUpperCase().trim();
-          var status = String(invDataAll[j][8] || '').toUpperCase().trim();
+          var suplier = String(invDataAll[j][8] || '').toUpperCase().trim();
+          var status = String(invDataAll[j][6] || '').toUpperCase().trim();
           if (suplier === 'TRADE-IN' && status === 'AVAILABLE') {
-            var modal = parseHarga(invDataAll[j][6] || invDataAll[j][4]);
+            var modal = parseHarga(invDataAll[j][4]);
             if (modal === hargaBeli || hargaBeli === 0) {
               tukarItems.push({
                 sn: String(invDataAll[j][0] || ''),
@@ -1483,7 +1475,7 @@ function addStockBulk(text, defaultLokasi) {
       var lokasi = (parts[6] || defaultLokasi || 'JOGJA').toUpperCase().trim();
       var suplier = parts[7] || '';
       var staff = getCurrentStaff();
-      newRows.push([sn, model, spec, kondisi, Number(modal)||0, 0, Number(modal)||0, Number(harga)||0, 'Available', today, suplier, lokasi, '', staff, '', '']);
+      newRows.push([sn, model, spec, kondisi, Number(modal)||0, Number(harga)||0, 'Available', today, suplier, lokasi, '', staff, '', '']);
       results.push('OK: ' + sn + ' | ' + model);
       okCount++;
     }
@@ -1619,8 +1611,8 @@ function lookupTradeInSn(sn) {
       return {
         found: true, sn: String(data[i][0]),
         model: String(data[i][1]), spec: String(data[i][2]),
-        harga: parseHarga(data[i][7]), modal: parseHarga(data[i][4]),
-        status: String(data[i][8]), lokasi: String(data[i][11] || '').toUpperCase().trim()
+        harga: parseHarga(data[i][5]), modal: parseHarga(data[i][4]),
+        status: String(data[i][6]), lokasi: String(data[i][9] || '').toUpperCase().trim()
       };
     }
   }
@@ -1644,7 +1636,7 @@ function createTradeIn(data) {
     var found = false;
     for (var j = 1; j < rows.length; j++) {
       if (String(rows[j][0]).toUpperCase() === item.sn.toUpperCase()) {
-        stSheet.getRange(j + 1, 9).setValue('Sold');
+        stSheet.getRange(j + 1, 7).setValue('Sold');
         found = true;
         break;
       }
@@ -1674,7 +1666,7 @@ function createTradeIn(data) {
       continue;
     }
     stSheet.appendRow([
-      tukarSn, t.model, t.spec || '-', '', Number(t.harga)||0, 0, Number(t.harga)||0,
+      tukarSn, t.model, t.spec || '-', '', Number(t.harga)||0,
       Number(t.harga)||0, 'Available', today, '', defaultLoc, '', '', '', ''
     ]);
     existingSNs[tukarSn] = true; // prevent same-SN duplicate within one transaction
@@ -1775,8 +1767,8 @@ function getStockData(loc) {
   for (var i = 0; i < data.length; i++) { while (data[i].length < maxCols) data[i].push(''); }
   var items = [];
   for (var i = 1; i < data.length; i++) {
-    var rLoc = String(data[i][11]||'').toUpperCase().trim();
-    var st = String(data[i][8]||'').trim();
+    var rLoc = String(data[i][9]||'').toUpperCase().trim();
+    var st = String(data[i][6]||'').trim();
     if (!rLoc || !st) continue;
     if (loc && rLoc !== loc.toUpperCase()) continue;
     var spec = String(data[i][2]||'');
@@ -1785,10 +1777,10 @@ function getStockData(loc) {
       model: String(data[i][1]||''),
       spekSingkat: spec,
       hargaBeli: parseHarga(data[i][4]),
-      hargaJual: parseHarga(data[i][7]),
+      hargaJual: parseHarga(data[i][5]),
       lokasi: rLoc,
       status: st,
-      tanggalMasuk: String(data[i][9]||''),
+      tanggalMasuk: String(data[i][7]||''),
       rowIndex: i + 1
     });
   }
@@ -1804,8 +1796,8 @@ function getDashboardStats() {
   var locStats = {};
   
   for (var i = 1; i < data.length; i++) {
-    var st = String(data[i][8]||'').trim();
-    var loc = String(data[i][11]||'').toUpperCase().trim() || 'UNKNOWN';
+    var st = String(data[i][6]||'').trim();
+    var loc = String(data[i][9]||'').toUpperCase().trim() || 'UNKNOWN';
     if (!st) continue;
     total++;
     
@@ -1830,7 +1822,7 @@ function getLocations() {
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var locs = {};
   for (var i = 1; i < data.length; i++) {
-    var l = String(data[i][11]||'').toUpperCase().trim();
+    var l = String(data[i][9]||'').toUpperCase().trim();
     if (l) locs[l] = true;
   }
   return Object.keys(locs).sort();
@@ -1843,14 +1835,14 @@ function getTransferItems(loc) {
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var items = [];
   for (var i = 1; i < data.length; i++) {
-    var rLoc = String(data[i][11] || '').toUpperCase().trim();
-    var st = String(data[i][8] || '').trim();
+    var rLoc = String(data[i][9] || '').toUpperCase().trim();
+    var st = String(data[i][6] || '').trim();
     if (rLoc === loc.toUpperCase() && st === 'Available') {
       items.push({
         sn: String(data[i][0] || ''),
         model: String(data[i][1] || ''),
         spec: String(data[i][2] || ''),
-        hargaJual: parseHarga(data[i][7]),
+        hargaJual: parseHarga(data[i][5]),
         rowIndex: i + 1
       });
     }
@@ -1879,16 +1871,16 @@ function transferStock(data) {
     if (snListUpper.indexOf(sn) === -1) continue;
     
     // Update location (col 11 = L, 1-indexed = 12)
-    sheet.getRange(i + 1, 12).setValue(toLoc.toUpperCase().trim());
+    sheet.getRange(i + 1, 10).setValue(toLoc.toUpperCase().trim());
     
     // Update handler (col 14 = N, 1-indexed = 15)
-    sheet.getRange(i + 1, 15).setValue(handler || 'Staff');
+    sheet.getRange(i + 1, 13).setValue(handler || 'Staff');
     
     // Append to location history (col 12 = M, 1-indexed = 13)
-    var oldHistory = String(rows[i][12] || '');
-    var fromLoc = String(rows[i][11] || '').toUpperCase().trim();
+    var oldHistory = String(rows[i][10] || '');
+    var fromLoc = String(rows[i][9] || '').toUpperCase().trim();
     var newEntry = now + ' | ' + fromLoc + ' → ' + toLoc.toUpperCase() + ' | by ' + (handler || 'Staff');
-    sheet.getRange(i + 1, 13).setValue(oldHistory ? oldHistory + '\n' + newEntry : newEntry);
+    sheet.getRange(i + 1, 11).setValue(oldHistory ? oldHistory + '\n' + newEntry : newEntry);
     
     moved++;
   }
@@ -2153,22 +2145,20 @@ function getSoldDatabase(filters) {
   for (var i = 1; i < data.length; i++) {
     var r = data[i];
     // Pad
-    while (r.length < 14) r.push('');
+    while (r.length < 12) r.push('');
     var row = {
       sn: String(r[0] || ''),
       model: String(r[1] || ''),
       spec: String(r[2] || ''),
       kondisi: String(r[3] || ''),
       hargaBeli: r[4] || '',
-      biayaServis: r[5] || '',
-      totalModal: r[6] || '',
-      hargaJual: r[7] || '',
-      status: String(r[8] || ''),
-      tanggalMasuk: String(r[9] || ''),
-      suplier: String(r[10] || ''),
-      lokasi: String(r[11] || '').toUpperCase().trim(),
-      history: String(r[12] || ''),
-      tanggalLog: String(r[13] || '')
+      hargaJual: r[5] || '',
+      status: String(r[6] || ''),
+      tanggalMasuk: String(r[7] || ''),
+      suplier: String(r[8] || ''),
+      lokasi: String(r[9] || '').toUpperCase().trim(),
+      history: String(r[10] || ''),
+      tanggalLog: String(r[11] || '')
     };
 
     // Apply filters if provided
@@ -2252,8 +2242,8 @@ function fixColumnFormats() {
   if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
   var data = sheet.getDataRange().getValues();
   var fixed = 0;
-  // Columns to fix: E(4)=Harga_Beli, F(5)=Biaya_Servis, G(6)=Total_Modal, H(7)=Harga_Jual
-  var cols = [4, 5, 6, 7];
+  // Columns to fix: E(4)=Harga_Beli, F(5)=Harga_Jual
+  var cols = [4, 5];
   for (var i = 1; i < data.length; i++) {
     for (var c = 0; c < cols.length; c++) {
       var colIdx = cols[c];
