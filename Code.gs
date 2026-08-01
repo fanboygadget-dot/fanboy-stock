@@ -964,20 +964,25 @@ function getPenjualanFiltered(startDate, endDate) {
     var allData = sheet.getDataRange().getDisplayValues();
     if (allData.length < 2) return {ok: true, data: [], count: 0};
 
-    // Find header row (contains "Tanggal")
+    // Find header row (contains date column)
     var headerRow = -1;
     var tglCol = -1;
+    var dateKeywords = ['tanggal', 'tgl', 'date', 'waktu'];
     for (var i = 0; i < Math.min(10, allData.length); i++) {
       for (var j = 0; j < allData[i].length; j++) {
-        if (String(allData[i][j]).toLowerCase().indexOf('tanggal') >= 0) {
-          headerRow = i;
-          tglCol = j;
-          break;
+        var hdr = String(allData[i][j] || '').toLowerCase().trim();
+        for (var k = 0; k < dateKeywords.length; k++) {
+          if (hdr.indexOf(dateKeywords[k]) >= 0) {
+            headerRow = i;
+            tglCol = j;
+            break;
+          }
         }
+        if (headerRow >= 0) break;
       }
       if (headerRow >= 0) break;
     }
-    if (headerRow < 0) return {ok: false, msg: 'Kolom Tanggal tidak ditemukan'};
+    if (headerRow < 0) return {ok: false, msg: 'Kolom tanggal tidak ditemukan. Header: ' + JSON.stringify(allData[0])};
 
     var start = parsePenjualanDate(startDate);
     var end = parsePenjualanDate(endDate);
