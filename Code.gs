@@ -325,9 +325,8 @@ function addStock(d) {
     var hargaJual = parseHarga(d.hargaJual);
     var staff = getCurrentStaff(d.staff);
     // Kolom: 0=ID_Laptop 1=Merk_Model 2=Spesifikasi 3=Kondisi 4=Harga_Beli
-    // 5=Biaya_Servis 6=Total_Modal 7=Harga_Jual 8=Status
-    // 9=Tanggal_Masuk 10=Suplier 11=Lokasi_Saat_Ini 12=history_lokasi
-    // 13=Staff_input 14=Staff_handle 15=Foto_Barang
+    // 5=Harga_Jual 6=Status 7=Tanggal_Masuk 8=Suplier 9=Lokasi_Saat_Ini
+    // 10=history_lokasi 11=Staff_input 12=Staff_handle 13=Foto_Barang
     sheet.appendRow([
       sn, d.model||'', d.spec||'', d.kondisi||'',
       hargaBeli, hargaJual,
@@ -1339,7 +1338,7 @@ function getInvoiceData(invoiceNo, snParam) {
         if (bestIdx > 0) {
           model = String(stData[bestIdx][1] || '');
           spec = String(stData[bestIdx][2] || '');
-          loc = String(stData[bestIdx][11] || '').toUpperCase().trim();
+          loc = String(stData[bestIdx][9] || '').toUpperCase().trim();
         }
       }
       // Parse TUKAR items from catatan for trade-in
