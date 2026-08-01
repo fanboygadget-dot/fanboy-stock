@@ -53,7 +53,7 @@ function bulkUpdateModalVlookup() {
   // Set VLOOKUP formula di kolom D (Modal) untuk semua baris data (row 2 sampai lastRow)
   var formulas = [];
   for (var r = 2; r <= lastRow; r++) {
-    formulas.push(['=IFERROR(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),0)']);
+    formulas.push(['=IFERROR(VALUE(SUBSTITUTE(SUBSTITUTE(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),"Rp ",""),".","")),0)']);
   }
   sheet.getRange(2, 4, formulas.length, 1).setFormulas(formulas);
   sheet.getRange(2, 4, formulas.length, 1).setNumberFormat('#,##0');
@@ -68,8 +68,13 @@ function bulkFixMarginFormulas() {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
 
-  // Fix column D number format
-  sheet.getRange(2, 4, lastRow - 1, 1).setNumberFormat('#,##0');
+  // Fix column D: VLOOKUP with Rp strip + number format
+  var dFormulas = [];
+  for (var r = 2; r <= lastRow; r++) {
+    dFormulas.push(['=IFERROR(VALUE(SUBSTITUTE(SUBSTITUTE(VLOOKUP(B' + r + ',Inventaris_Laptop!A:E,5,FALSE),"Rp ",""),".","")),0)']);
+  }
+  sheet.getRange(2, 4, dFormulas.length, 1).setFormulas(dFormulas);
+  sheet.getRange(2, 4, dFormulas.length, 1).setNumberFormat('#,##0');
 
   // Fix margin formula (col J = 10) for all rows: parse "Rp X.XXX" text in E
   var marginFormulas = [];
@@ -578,7 +583,7 @@ function createInvoice(data) {
     invSheet.appendRow([nextNo, sn, buyerHP, '', formatRupiah(harga), today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', formatRupiah(dpAmount), formatRupiah(sisaBayar), catatan]);
     // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
     var newRow = invSheet.getLastRow();
-    invSheet.getRange(newRow, 4).setFormula('=IFERROR(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    invSheet.getRange(newRow, 4).setFormula('=IFERROR(VALUE(SUBSTITUTE(SUBSTITUTE(VLOOKUP(B'+newRow+',Inventaris_Laptop!A:E,5,FALSE),"Rp ",""),".","")),0)');
     invSheet.getRange(newRow, 4).setNumberFormat('#,##0');
     // Margin = Harga (E) - Modal/D (D) — E berformat "Rp X.XXX" jadi perlu di-parse dulu
     invSheet.getRange(newRow, 10).setFormula('=VALUE(SUBSTITUTE(SUBSTITUTE(E'+newRow+',"Rp ",""),".",""))-D'+newRow);
@@ -651,7 +656,7 @@ function createInvoice(data) {
     invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', formatRupiah(ti.hargaBeli), today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', '']);
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var tiRow = invSheet.getLastRow();
-    invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    invSheet.getRange(tiRow, 4).setFormula('=IFERROR(VALUE(SUBSTITUTE(SUBSTITUTE(VLOOKUP(B'+tiRow+',Inventaris_Laptop!A:E,5,FALSE),"Rp ",""),".","")),0)');
     invSheet.getRange(tiRow, 4).setNumberFormat('#,##0');
 
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
@@ -1647,7 +1652,7 @@ function createTradeIn(data) {
     invSheet.appendRow([invNo, bi.sn, data.buyer||'', '', formatRupiah(Number(bi.harga)||0), today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Rp 0', 'Rp 0', tukarNote]);
     // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
     var bRow = invSheet.getLastRow();
-    invSheet.getRange(bRow, 4).setFormula('=IFERROR(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),0)');
+    invSheet.getRange(bRow, 4).setFormula('=IFERROR(VALUE(SUBSTITUTE(SUBSTITUTE(VLOOKUP(B'+bRow+',Inventaris_Laptop!A:E,5,FALSE),"Rp ",""),".","")),0)');
     invSheet.getRange(bRow, 4).setNumberFormat('#,##0');
   }
 
