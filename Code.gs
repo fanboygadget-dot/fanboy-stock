@@ -2261,3 +2261,54 @@ function fixColumnFormats() {
   }
   return {ok: true, msg: 'Berhasil convert ' + fixed + ' cell dari TEXT ke ANGKA'};
 }
+
+// --- TUTUP BUKU: Pindahkan stok Sold dari Inventaris_Laptop ke Log_stok_sold ---
+function tutupBuku() {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var invSheet = ss.getSheetByName('Inventaris_Laptop');
+    var logSheet = ss.getSheetByName('Log_stok_sold');
+    if (!invSheet || !logSheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+
+    var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
+    var allRows = invSheet.getDataRange().getValues();
+
+    // Cari baris Sold (kolom G = index 6)
+    var soldIndices = [];
+    for (var i = 1; i < allRows.length; i++) {
+      var status = String(allRows[i][6] || '').trim().toUpperCase();
+      if (status === 'SOLD') {
+        soldIndices.push(i);
+      }
+    }
+
+    if (soldIndices.length === 0) {
+      return {ok: true, count: 0, msg: 'Tidak ada stok Sold yang perlu dipindahkan.'};
+    }
+
+    // Siapkan data untuk append ke Log_stok_sold (tambah kolom Tanggal_Log)
+    var appendData = [];
+    for (var j = 0; j < soldIndices.length; j++) {
+      var row = allRows[soldIndices[j]].slice(); // copy array
+      // Pad to 11 cols (A-K) + Tanggal_Log
+      while (row.length < 11) row.push('');
+      row = row.slice(0, 11); // truncate if more than 11
+      row.push(today); // Tanggal_Log
+      appendData.push(row);
+    }
+
+    // Append ke Log_stok_sold
+    if (appendData.length > 0) {
+      logSheet.getRange(logSheet.getLastRow() + 1, 1, appendData.length, appendData[0].length).setValues(appendData);
+    }
+
+    // Hapus baris Sold dari Inventaris_Laptop (bottom-up agar index tidak shift)
+    for (var k = soldIndices.length - 1; k >= 0; k--) {
+      invSheet.deleteRow(soldIndices[k] + 1); // +1 karena sheet row 1-indexed
+    }
+
+    return {ok: true, count: soldIndices.length, msg: soldIndices.length + ' stok Sold berhasil dipindahkan ke Database Sold.'};
+  } catch(e) {
+    return {ok: false, msg: 'Error: ' + e.toString()};
+  }
+}

@@ -854,6 +854,7 @@
           <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <span><i class="fas fa-database"></i> Stok yang Sudah Terjual</span>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-warning btn-sm staff-hidden" id="btnTutupBuku" onclick="doTutupBuku()" style="font-weight:700"><i class="fas fa-book"></i> Tutup Buku</button>
               <select id="dbsoldMonth" onchange="loadSoldDatabase()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
                 <option value="">Semua Bulan</option>
               </select>
@@ -2563,7 +2564,39 @@
     
     // DATABASE SOLD
     var soldDatabaseData = [];
-    
+
+    function doTutupBuku() {
+      if (!(currentUser && currentUser.role === 'admin')) { alert('Hanya admin yang bisa tutup buku'); return; }
+      if (!confirm('Tutup Buku akan memindahkan SEMUA stok "Sold" dari Inventaris ke Database Sold.\n\nLanjutkan?')) return;
+
+      var btn = $('btnTutupBuku');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+
+      google.script.run.withSuccessHandler(function(r) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-book"></i> Tutup Buku';
+        var el = $('dbsoldResult');
+        if (r.ok) {
+          el.textContent = r.msg;
+          el.className = 'msg msg-success';
+          el.style.display = 'block';
+          loadSoldDatabase(); // refresh table
+        } else {
+          el.textContent = r.msg;
+          el.className = 'msg msg-error';
+          el.style.display = 'block';
+        }
+      }).withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-book"></i> Tutup Buku';
+        var el = $('dbsoldResult');
+        el.textContent = 'Error: ' + err.message;
+        el.className = 'msg msg-error';
+        el.style.display = 'block';
+      }).tutupBuku();
+    }
+
     function initSoldDatabase() {
       // Load months
       google.script.run.withSuccessHandler(function(months) {
