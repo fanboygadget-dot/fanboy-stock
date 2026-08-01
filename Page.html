@@ -1949,8 +1949,9 @@
         total += r.dealPrice;
         var tr = document.createElement('tr');
         tr.style.borderBottom='1px solid var(--border)';
+        var modalWarn = (!r.hargaBeli || r.hargaBeli <= 0) ? ' <span style="background:#fee2e2;color:#dc2626;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">⚠️ MODAL 0</span>' : '';
         tr.innerHTML='<td style="padding:8px"><b>'+esc(r.sn)+'</b></td>'
-          +'<td style="padding:8px">'+esc(r.model)+'<br><span style="font-size:11px;color:var(--gray)">'+esc(r.spekSingkat||'-')+'</span></td>'
+          +'<td style="padding:8px">'+esc(r.model)+modalWarn+'<br><span style="font-size:11px;color:var(--gray)">'+esc(r.spekSingkat||'-')+'</span></td>'
           +'<td style="padding:8px;text-align:right;color:var(--gray);text-decoration:line-through">Rp '+fmtNum(harga)+'</td>'
           +'<td style="padding:8px;text-align:right"><input type="text" class="deal-input" data-sn="'+esc(r.sn)+'" value="'+fmtNum(r.dealPrice)+'" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;text-align:right;font-size:13px;font-weight:600" oninput="updateDealPrice(this)"></td>'
           +'<td style="padding:8px;text-align:center"><button onclick="removeFromCart(\''+esc(r.sn)+'\')" style="background:none;border:none;color:#ef4444;cursor:pointer"><i class="fas fa-trash"></i></button></td>';
@@ -1984,7 +1985,15 @@
       e.preventDefault();
       if(_jualSubmitting) return;
       if(!jualCart.length) { alert('Tambahkan laptop ke keranjang dulu'); return; }
-      
+
+      // Cek harga modal 0
+      var zeroModalItems = jualCart.filter(function(r){ return !r.hargaBeli || r.hargaBeli <= 0; });
+      if(zeroModalItems.length) {
+        var snList = zeroModalItems.map(function(r){ return r.sn + ' (' + (r.model||'') + ')'; }).join('\n• ');
+        alert('❌ Tidak bisa proses! Harga modal masih 0:\n\n• ' + snList + '\n\nUpdate harga beli dulu di menu Stok Laptop.');
+        return;
+      }
+
       var isSplit = $('jSplitPay').checked;
       var paymentStr = '';
       
