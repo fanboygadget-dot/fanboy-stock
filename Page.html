@@ -290,6 +290,9 @@
         <div class="nav-item" onclick="switchPage('dbsold')" data-page="dbsold">
           <i class="fas fa-database"></i> <span>Database Sold</span>
         </div>
+        <div class="nav-item" onclick="switchPage('laporan')" data-page="laporan">
+          <i class="fas fa-file-excel"></i> <span>Laporan Penjualan</span>
+        </div>
         <div class="nav-item" onclick="switchPage('geser')" data-page="geser">
           <i class="fas fa-exchange-alt"></i> <span>Geser Stok</span>
         </div>
@@ -814,11 +817,14 @@
           <div id="riwayatResult" class="msg"></div>
           <div id="riwayatTable" class="table-wrap" style="overflow-x:auto"></div>
         </div>
-        
-        <!-- DOWNLOAD LAPORAN PENJUALAN -->
+      </div>
+
+      <!-- LAPORAN PENJUALAN -->
+      <div id="page-laporan" style="display:none">
+        <div class="page-title"><i class="fas fa-file-excel"></i> Laporan Penjualan</div>
         <div class="card">
           <div class="card-header"><i class="fas fa-file-excel"></i> Download Laporan Penjualan</div>
-          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format CSV (.csv)</p>
+          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format Spreadsheet Google</p>
           <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-group" style="margin-bottom:0">
               <label style="font-size:12px">Tanggal Mulai</label>
@@ -835,7 +841,7 @@
           <div id="penResult" class="msg" style="margin-top:12px"></div>
         </div>
       </div>
-      
+
       <!-- DATABASE SOLD -->
       <div id="page-dbsold" style="display:none">
         <div class="page-title"><i class="fas fa-database"></i> Database Sold</div>

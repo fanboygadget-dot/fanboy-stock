@@ -532,6 +532,7 @@ function createInvoice(data) {
     
     if (!item) { resultItems.push({sn:sn, ok:false, msg:'SN tidak ditemukan di inventory'}); continue; }
     if (item.status !== 'Available') { resultItems.push({sn:sn, ok:false, msg:'Status: '+item.status+' (bukan Available)'}); continue; }
+    if (!item.modal || item.modal <= 0) { resultItems.push({sn:sn, ok:false, msg:'Modal/Harga Beli masih 0 atau kosong. Update harga beli dulu di Inventaris.'}); continue; }
     
     // NOTE: Cek duplikat SN di invoice log DIHAPUS.
     // Alasan: jika barang pernah dijual lalu di-Retur, status kembali Available tapi
