@@ -1360,6 +1360,280 @@ function generatePenjualanExcel(startDate, endDate) {
       Logger.log('Bonus tab error: ' + bonusErr);
     }
 
+    // === TAB LAPORAN LENGKAP (sebelah Bonus Penjualan) ===
+    try {
+      var hTokoL = -1, hPenjL = -1, hNamaBarangL = -1, hSalesL = -1, hHandleL = -1, hModalL = -1;
+      for (var c = 0; c < headers.length; c++) {
+        var hdr = String(headers[c] || '').toLowerCase().trim();
+        if (hdr === 'toko' && hTokoL < 0) hTokoL = c;
+        if (hdr.indexOf('penjualan') >= 0 && hPenjL < 0) hPenjL = c;
+        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarangL < 0) hNamaBarangL = c;
+        if (hdr === 'sales' && hSalesL < 0) hSalesL = c;
+        if (hdr === 'handle' && hHandleL < 0) hHandleL = c;
+        if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal') && hModalL < 0) hModalL = c;
+      }
+
+      var lapSheet = ss.insertSheet('Laporan Lengkap');
+
+      // === SECTION 1: UNIT TERJUAL PER TOKO ===
+      var tokoData = {};  // toko -> {unit, omset, models:{model:{count, omset}}}
+      var globalSalesData = {};  // sales -> {unit, omset, keuntungan, toko:{}}
+      var tokoOmset = {};  // toko -> omset
+      var tokoModal = {};  // toko -> modal
+
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var toko = hTokoL >= 0 ? String(r[hTokoL] || '').trim() : '-';
+        if (!toko) toko = '-';
+        var omset = hPenjL >= 0 ? parseHarga(r[hPenjL]) : 0;
+        var modal = hModalL >= 0 ? parseHarga(r[hModalL]) : 0;
+        var model = hNamaBarangL >= 0 ? String(r[hNamaBarangL] || '').trim() : '-';
+        var sales = hSalesL >= 0 ? String(r[hSalesL] || '').trim() : '-';
+        if (!sales) sales = '-';
+        var handler = hHandleL >= 0 ? String(r[hHandleL] || '').trim() : '-';
+
+        // Per toko
+        if (!tokoData[toko]) tokoData[toko] = {unit: 0, omset: 0, modal: 0, models: {}};
+        tokoData[toko].unit++;
+        tokoData[toko].omset += omset;
+        tokoData[toko].modal += modal;
+        if (!tokoData[toko].models[model]) tokoData[toko].models[model] = {count: 0, omset: 0};
+        tokoData[toko].models[model].count++;
+        tokoData[toko].models[model].omset += omset;
+
+        // Per toko omset/modal
+        if (!tokoOmset[toko]) tokoOmset[toko] = 0;
+        tokoOmset[toko] += omset;
+        if (!tokoModal[toko]) tokoModal[toko] = 0;
+        tokoModal[toko] += modal;
+
+        // Global sales (across all stores)
+        if (!globalSalesData[sales]) globalSalesData[sales] = {unit: 0, omset: 0, keuntungan: 0, toko: {}};
+        globalSalesData[sales].unit++;
+        globalSalesData[sales].omset += omset;
+        globalSalesData[sales].keuntungan += (omset - modal);
+        if (!globalSalesData[sales].toko[toko]) globalSalesData[sales].toko[toko] = {unit: 0, omset: 0};
+        globalSalesData[sales].toko[toko].unit++;
+        globalSalesData[sales].toko[toko].omset += omset;
+      }
+
+      var tokoNames = [];
+      for (var t in tokoData) tokoNames.push(t);
+      tokoNames.sort(function(a,b) { return tokoData[b].omset - tokoData[a].omset; });
+
+      // Header Section 1
+      var row1 = 1;
+      lapSheet.getRange(row1, 1).setValue('📦 UNIT TERJUAL PER TOKO').setFontWeight('bold').setFontSize(14);
+      lapSheet.getRange(row1, 1, 1, 6).setBackground('#1a73e8').setFontColor('#fff').setFontWeight('bold');
+      lapSheet.getRange(row1 + 1, 1, 1, 6).setValues([['No', 'Toko Cabang', 'Unit Terjual', 'Total Omset', 'Total Modal', 'Total Keuntungan']]).setFontWeight('bold').setBackground('#e8edf5');
+
+      var dRow = row1 + 2;
+      var grandUnit = 0, grandOmset = 0, grandModal = 0;
+      for (var t = 0; t < tokoNames.length; t++) {
+        var tk = tokoNames[t];
+        var d = tokoData[tk];
+        var untung = d.omset - d.modal;
+        lapSheet.getRange(dRow, 1).setValue(t + 1);
+        lapSheet.getRange(dRow, 2).setValue(tk);
+        lapSheet.getRange(dRow, 3).setValue(d.unit).setNumberFormat('#,##0');
+        lapSheet.getRange(dRow, 4).setValue(d.omset).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(dRow, 5).setValue(d.modal).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(dRow, 6).setValue(untung).setNumberFormat('Rp #,##0');
+        if (t % 2 === 0) lapSheet.getRange(dRow, 1, 1, 6).setBackground('#f0f4ff');
+        grandUnit += d.unit; grandOmset += d.omset; grandModal += d.modal;
+        dRow++;
+      }
+      // Total row
+      lapSheet.getRange(dRow, 1).setValue('TOTAL').setFontWeight('bold');
+      lapSheet.getRange(dRow, 3).setValue(grandUnit).setFontWeight('bold').setNumberFormat('#,##0');
+      lapSheet.getRange(dRow, 4).setValue(grandOmset).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(dRow, 5).setValue(grandModal).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(dRow, 6).setValue(grandOmset - grandModal).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(dRow, 1, 1, 6).setBackground('#d4e4ff').setBorder(true,true,true,true,true,true);
+      lapSheet.getRange(row1, 1, dRow - row1 + 1, 6).setBorder(true,true,true,true,true,true);
+      for (var c = 1; c <= 6; c++) lapSheet.autoResizeColumn(c);
+
+      // Chart: Unit Terjual per Toko (Bar)
+      if (tokoNames.length > 0) {
+        var cDataRange1 = lapSheet.getRange(row1 + 1, 2, tokoNames.length + 1, 2);
+        var cChart1 = lapSheet.newChart()
+          .setChartType(Charts.ChartType.BAR)
+          .addRange(cDataRange1)
+          .setPosition(row1, 8, 0, 0)
+          .setOption('title', 'Unit Terjual per Toko')
+          .setOption('width', 500).setOption('height', 300)
+          .setOption('legend', {position: 'none'})
+          .setOption('colors', ['#3b82f6'])
+          .setOption('hAxis', {title: 'Unit'})
+          .build();
+        lapSheet.insertChart(cChart1);
+      }
+
+      // === SECTION 2: OMSET LENGKAP PER CABANG ===
+      var sec2Start = dRow + 3;
+      lapSheet.getRange(sec2Start, 1).setValue('💰 OMSET LENGKAP PER CABANG TOKO').setFontWeight('bold').setFontSize(14);
+      lapSheet.getRange(sec2Start, 1, 1, 6).setBackground('#16a34a').setFontColor('#fff').setFontWeight('bold');
+      lapSheet.getRange(sec2Start + 1, 1, 1, 6).setValues([['No', 'Toko Cabang', 'Total Omset', 'Total Modal', 'Keuntungan', '% dari Total']]).setFontWeight('bold').setBackground('#dcfce7');
+
+      var oRow = sec2Start + 2;
+      for (var t = 0; t < tokoNames.length; t++) {
+        var tk = tokoNames[t];
+        var d = tokoData[tk];
+        var untung = d.omset - d.modal;
+        var pct = grandOmset > 0 ? (d.omset / grandOmset * 100) : 0;
+        lapSheet.getRange(oRow, 1).setValue(t + 1);
+        lapSheet.getRange(oRow, 2).setValue(tk);
+        lapSheet.getRange(oRow, 3).setValue(d.omset).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(oRow, 4).setValue(d.modal).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(oRow, 5).setValue(untung).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(oRow, 6).setValue(pct.toFixed(1) + '%');
+        if (t % 2 === 0) lapSheet.getRange(oRow, 1, 1, 6).setBackground('#f0fff4');
+        oRow++;
+      }
+      // Detail per toko: break down by model
+      oRow++;
+      lapSheet.getRange(oRow, 1).setValue('📊 DETAIL PER TOKO (per Model)').setFontWeight('bold').setFontSize(12).setFontColor('#1a73e8');
+      oRow++;
+
+      for (var t = 0; t < tokoNames.length; t++) {
+        var tk = tokoNames[t];
+        var td = tokoData[tk];
+        lapSheet.getRange(oRow, 1).setValue('🏪 ' + tk).setFontWeight('bold').setFontSize(11);
+        lapSheet.getRange(oRow, 1, 1, 4).setBackground('#e0e7ff').setFontWeight('bold');
+        oRow++;
+        lapSheet.getRange(oRow, 1, 1, 4).setValues([['No', 'Model', 'Unit', 'Omset']]).setFontWeight('bold').setBackground('#f0f4ff');
+        oRow++;
+
+        var modelArr = [];
+        for (var m in td.models) modelArr.push({model: m, count: td.models[m].count, omset: td.models[m].omset});
+        modelArr.sort(function(a,b) { return b.count - a.count; });
+
+        for (var m = 0; m < modelArr.length; m++) {
+          lapSheet.getRange(oRow, 1).setValue(m + 1);
+          lapSheet.getRange(oRow, 2).setValue(modelArr[m].model);
+          lapSheet.getRange(oRow, 3).setValue(modelArr[m].count).setNumberFormat('#,##0');
+          lapSheet.getRange(oRow, 4).setValue(modelArr[m].omset).setNumberFormat('Rp #,##0');
+          if (m % 2 === 0) lapSheet.getRange(oRow, 1, 1, 4).setBackground('#f8faff');
+          oRow++;
+        }
+        // Subtotal
+        lapSheet.getRange(oRow, 2).setValue('Subtotal ' + tk).setFontWeight('bold');
+        lapSheet.getRange(oRow, 3).setValue(td.unit).setFontWeight('bold').setNumberFormat('#,##0');
+        lapSheet.getRange(oRow, 4).setValue(td.omset).setFontWeight('bold').setNumberFormat('Rp #,##0');
+        lapSheet.getRange(oRow, 1, 1, 4).setBackground('#d4e4ff').setBorder(true,true,true,true,true,true);
+        oRow += 2;
+      }
+
+      // Total omset row
+      lapSheet.getRange(oRow, 1).setValue('TOTAL KESELURUHAN').setFontWeight('bold').setFontSize(11);
+      lapSheet.getRange(oRow, 3).setValue(grandUnit).setFontWeight('bold').setNumberFormat('#,##0');
+      lapSheet.getRange(oRow, 4).setValue(grandOmset).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(oRow, 5).setValue(grandOmset - grandModal).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(oRow, 1, 1, 6).setBackground('#bbf7d0').setBorder(true,true,true,true,true,true);
+
+      // Chart: Omset per Toko (Bar)
+      if (tokoNames.length > 0) {
+        var cDataRange2 = lapSheet.getRange(sec2Start + 1, 2, tokoNames.length + 1, 1);
+        var cDataRange2b = lapSheet.getRange(sec2Start + 1, 3, tokoNames.length + 1, 1);
+        var cChart2 = lapSheet.newChart()
+          .setChartType(Charts.ChartType.BAR)
+          .addRange(cDataRange2)
+          .addRange(cDataRange2b)
+          .setPosition(sec2Start, 8, 0, 0)
+          .setOption('title', 'Omset per Cabang Toko')
+          .setOption('width', 500).setOption('height', 300)
+          .setOption('legend', {position: 'none'})
+          .setOption('colors', ['#16a34a'])
+          .setOption('hAxis', {title: 'Omset (Rp)', format: 'Rp #,##0'})
+          .build();
+        lapSheet.insertChart(cChart2);
+      }
+
+      // === SECTION 3: PERINGKAT SALES GLOBAL (SEMUA TOKO) ===
+      var sec3Start = oRow + 3;
+      lapSheet.getRange(sec3Start, 1).setValue('🏆 PERINGKAT SALES GLOBAL (SEMUA TOKO)').setFontWeight('bold').setFontSize(14);
+      lapSheet.getRange(sec3Start, 1, 1, 5 + tokoNames.length).setBackground('#f59e0b').setFontColor('#fff').setFontWeight('bold');
+
+      // Build dynamic headers: No, Nama Sales, Unit Total, Omset Total, Keuntungan, [per toko omset...]
+      var salesHeaders = ['No', 'Nama Sales', 'Unit Terjual', 'Total Omset', 'Total Keuntungan'];
+      for (var t = 0; t < tokoNames.length; t++) salesHeaders.push('Omset ' + tokoNames[t]);
+      lapSheet.getRange(sec3Start + 1, 1, 1, salesHeaders.length).setValues([salesHeaders]).setFontWeight('bold').setBackground('#fef3c7');
+
+      var salesArr = [];
+      for (var name in globalSalesData) salesArr.push({name: name, data: globalSalesData[name]});
+      salesArr.sort(function(a,b) { return b.data.omset - a.data.omset; });
+
+      var sRow = sec3Start + 2;
+      for (var s = 0; s < salesArr.length; s++) {
+        var sd = salesArr[s].data;
+        lapSheet.getRange(sRow, 1).setValue(s + 1);
+        lapSheet.getRange(sRow, 2).setValue(salesArr[s].name);
+        lapSheet.getRange(sRow, 3).setValue(sd.unit).setNumberFormat('#,##0');
+        lapSheet.getRange(sRow, 4).setValue(sd.omset).setNumberFormat('Rp #,##0');
+        lapSheet.getRange(sRow, 5).setValue(sd.keuntungan).setNumberFormat('Rp #,##0');
+        // Per toko columns
+        for (var t = 0; t < tokoNames.length; t++) {
+          var tkOmset = (sd.toko[tokoNames[t]] || {}).omset || 0;
+          lapSheet.getRange(sRow, 6 + t).setValue(tkOmset).setNumberFormat('Rp #,##0');
+        }
+        if (s % 2 === 0) lapSheet.getRange(sRow, 1, 1, salesHeaders.length).setBackground('#fffbeb');
+        sRow++;
+      }
+      // Total row
+      lapSheet.getRange(sRow, 1).setValue('TOTAL').setFontWeight('bold');
+      var gSu = 0, gSo = 0, gSk = 0;
+      for (var s = 0; s < salesArr.length; s++) { gSu += salesArr[s].data.unit; gSo += salesArr[s].data.omset; gSk += salesArr[s].data.keuntungan; }
+      lapSheet.getRange(sRow, 3).setValue(gSu).setFontWeight('bold').setNumberFormat('#,##0');
+      lapSheet.getRange(sRow, 4).setValue(gSo).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      lapSheet.getRange(sRow, 5).setValue(gSk).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      for (var t = 0; t < tokoNames.length; t++) {
+        var tkTotal = 0;
+        for (var s = 0; s < salesArr.length; s++) tkTotal += (salesArr[s].data.toko[tokoNames[t]] || {}).omset || 0;
+        lapSheet.getRange(sRow, 6 + t).setValue(tkTotal).setFontWeight('bold').setNumberFormat('Rp #,##0');
+      }
+      lapSheet.getRange(sRow, 1, 1, salesHeaders.length).setBackground('#fde68a').setBorder(true,true,true,true,true,true);
+
+      // Borders and auto-resize
+      lapSheet.getRange(sec3Start, 1, sRow - sec3Start + 1, salesHeaders.length).setBorder(true,true,true,true,true,true);
+      for (var c = 1; c <= salesHeaders.length; c++) lapSheet.autoResizeColumn(c);
+
+      // Chart: Sales Ranking by Omset (Horizontal Bar)
+      if (salesArr.length > 0) {
+        var topN = Math.min(salesArr.length, 15);
+        var cDataRange3 = lapSheet.getRange(sec3Start + 1, 2, topN + 1, 1); // Nama Sales
+        var cDataRange3b = lapSheet.getRange(sec3Start + 1, 4, topN + 1, 1); // Omset
+        var cChart3 = lapSheet.newChart()
+          .setChartType(Charts.ChartType.BAR)
+          .addRange(cDataRange3)
+          .addRange(cDataRange3b)
+          .setPosition(sec3Start, 6 + tokoNames.length + 1, 0, 0)
+          .setOption('title', 'Peringkat Sales Global by Omset')
+          .setOption('width', 500).setOption('height', 400)
+          .setOption('legend', {position: 'none'})
+          .setOption('colors', ['#f59e0b'])
+          .setOption('hAxis', {title: 'Total Omset (Rp)', format: 'Rp #,##0'})
+          .build();
+        lapSheet.insertChart(cChart3);
+
+        // Chart: Sales by Unit (Pie Chart)
+        var cDataRange4 = lapSheet.getRange(sec3Start + 1, 2, topN + 1, 1); // Nama Sales
+        var cDataRange4b = lapSheet.getRange(sec3Start + 1, 3, topN + 1, 1); // Unit
+        var cChart4 = lapSheet.newChart()
+          .setChartType(Charts.ChartType.PIE)
+          .addRange(cDataRange4)
+          .addRange(cDataRange4b)
+          .setPosition(sec3Start + 20, 6 + tokoNames.length + 1, 0, 0)
+          .setOption('title', 'Distribusi Unit Terjual per Sales')
+          .setOption('width', 500).setOption('height', 400)
+          .setOption('pieHole', 0.4)
+          .build();
+        lapSheet.insertChart(cChart4);
+      }
+
+    } catch(lapErr) {
+      Logger.log('Laporan Lengkap tab error: ' + lapErr);
+    }
+
     return {ok: true, url: url, ssId: ss.getId(), count: result.count};
   } catch(e) {
     return {ok: false, msg: 'Error: ' + e.toString()};
