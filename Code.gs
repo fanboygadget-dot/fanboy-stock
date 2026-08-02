@@ -1170,14 +1170,15 @@ function generatePenjualanExcel(startDate, endDate) {
 
     var url = ss.getUrl();
 
-    // === GRAFIK PENJUALAN PER TOKO CABANG ===
+    // === GRAFIK PENJUALAN PER TOKO CABANG + PERINGKAT SALES ===
     try {
-      var hToko = -1, hPenjGrafik = -1, hNamaBarang = -1;
+      var hToko = -1, hPenjGrafik = -1, hNamaBarang = -1, hSalesGrafik = -1;
       for (var c = 0; c < headers.length; c++) {
         var hdr = String(headers[c] || '').toLowerCase().trim();
-        if (hdr === 'toko' && hToko < 0) hToko = c;
+        if ((hdr === 'toko' || hdr.indexOf('toko') >= 0 || hdr.indexOf('cabang') >= 0 || hdr.indexOf('lokasi') >= 0) && hToko < 0) hToko = c;
         if (hdr.indexOf('penjualan') >= 0 && hPenjGrafik < 0) hPenjGrafik = c;
         if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarang < 0) hNamaBarang = c;
+        if ((hdr === 'sales' || hdr.indexOf('sales') >= 0 || hdr.indexOf('nama sales') >= 0) && hSalesGrafik < 0) hSalesGrafik = c;
       }
 
       if (hToko >= 0) {
@@ -1253,6 +1254,78 @@ function generatePenjualanExcel(startDate, endDate) {
             .setOption('hAxis', {title: 'Total Omset (Rp)', format: 'Rp #,##0'})
             .build();
           sheet.insertChart(chart2);
+        }
+
+        // Chart 3: Peringkat Sales Global (Bar Chart)
+        if (hSalesGrafik >= 0) {
+          var salesGrafikData = {};
+          for (var i = 0; i < rows.length; i++) {
+            var sn = String(rows[i][hSalesGrafik] || '').trim() || '-';
+            var omset = hPenjGrafik >= 0 ? parseHarga(rows[i][hPenjGrafik]) : 0;
+            if (!salesGrafikData[sn]) salesGrafikData[sn] = {unit: 0, omset: 0};
+            salesGrafikData[sn].unit++;
+            salesGrafikData[sn].omset += omset;
+          }
+          var salesGrafikArr = [];
+          for (var n in salesGrafikData) salesGrafikArr.push({name: n, unit: salesGrafikData[n].unit, omset: salesGrafikData[n].omset});
+          salesGrafikArr.sort(function(a,b) { return b.omset - a.omset; });
+          var topSalesN = Math.min(salesGrafikArr.length, 15);
+
+          if (topSalesN > 0) {
+            // Write sales ranking table
+            var salesTableStart = chartStartRow + tokoArr.length + 5;
+            sheet.getRange(salesTableStart, 1).setValue('PERINGKAT SALES TERBAIK').setFontWeight('bold').setFontSize(13);
+            sheet.getRange(salesTableStart, 1, 1, 4).setBackground('#f59e0b').setFontColor('#fff').setFontWeight('bold');
+            sheet.getRange(salesTableStart + 1, 1, 1, 4).setValues([['No', 'Nama Sales', 'Unit Terjual', 'Total Omset']]).setFontWeight('bold').setBackground('#fef3c7');
+
+            for (var s = 0; s < topSalesN; s++) {
+              var srow = salesTableStart + s + 2;
+              sheet.getRange(srow, 1).setValue(s + 1);
+              sheet.getRange(srow, 2).setValue(salesGrafikArr[s].name);
+              sheet.getRange(srow, 3).setValue(salesGrafikArr[s].unit).setNumberFormat('#,##0');
+              sheet.getRange(srow, 4).setValue(salesGrafikArr[s].omset).setNumberFormat('Rp #,##0');
+              if (s % 2 === 0) sheet.getRange(srow, 1, 1, 4).setBackground('#fffbeb');
+            }
+            var salesTotalRowG = salesTableStart + topSalesN + 2;
+            sheet.getRange(salesTotalRowG, 1).setValue('TOTAL').setFontWeight('bold');
+            var sU=0, sO=0;
+            for (var s=0;s<topSalesN;s++){sU+=salesGrafikArr[s].unit;sO+=salesGrafikArr[s].omset;}
+            sheet.getRange(salesTotalRowG, 3).setValue(sU).setFontWeight('bold').setNumberFormat('#,##0');
+            sheet.getRange(salesTotalRowG, 4).setValue(sO).setFontWeight('bold').setNumberFormat('Rp #,##0');
+            sheet.getRange(salesTotalRowG, 1, 1, 4).setBackground('#fde68a').setBorder(true,true,true,true,true,true);
+            sheet.getRange(salesTableStart, 1, salesTotalRowG - salesTableStart + 1, 4).setBorder(true,true,true,true,true,true);
+
+            // Chart: Sales Omset Ranking
+            var sDataRange = sheet.getRange(salesTableStart + 1, 2, topSalesN + 1, 1);
+            var sDataRangeB = sheet.getRange(salesTableStart + 1, 4, topSalesN + 1, 1);
+            var chart3 = sheet.newChart()
+              .setChartType(Charts.ChartType.BAR)
+              .addRange(sDataRange)
+              .addRange(sDataRangeB)
+              .setPosition(salesTableStart, 6, 0, 0)
+              .setOption('title', 'Peringkat Sales by Omset')
+              .setOption('width', 500)
+              .setOption('height', 400)
+              .setOption('legend', {position: 'none'})
+              .setOption('colors', ['#f59e0b'])
+              .setOption('hAxis', {title: 'Total Omset (Rp)', format: 'Rp #,##0'})
+              .build();
+            sheet.insertChart(chart3);
+
+            // Chart: Sales Unit Distribution (Pie)
+            var sDataRangeC = sheet.getRange(salesTableStart + 1, 3, topSalesN + 1, 1);
+            var chart4 = sheet.newChart()
+              .setChartType(Charts.ChartType.PIE)
+              .addRange(sDataRange)
+              .addRange(sDataRangeC)
+              .setPosition(salesTableStart + 20, 6, 0, 0)
+              .setOption('title', 'Distribusi Unit per Sales')
+              .setOption('width', 500)
+              .setOption('height', 400)
+              .setOption('pieHole', 0.4)
+              .build();
+            sheet.insertChart(chart4);
+          }
         }
       }
     } catch(chartErr) {
@@ -1365,12 +1438,12 @@ function generatePenjualanExcel(startDate, endDate) {
       var hTokoL = -1, hPenjL = -1, hNamaBarangL = -1, hSalesL = -1, hHandleL = -1, hModalL = -1;
       for (var c = 0; c < headers.length; c++) {
         var hdr = String(headers[c] || '').toLowerCase().trim();
-        if (hdr === 'toko' && hTokoL < 0) hTokoL = c;
+        if ((hdr === 'toko' || hdr.indexOf('toko') >= 0 || hdr.indexOf('cabang') >= 0 || hdr.indexOf('lokasi') >= 0) && hTokoL < 0) hTokoL = c;
         if (hdr.indexOf('penjualan') >= 0 && hPenjL < 0) hPenjL = c;
         if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarangL < 0) hNamaBarangL = c;
-        if (hdr === 'sales' && hSalesL < 0) hSalesL = c;
+        if ((hdr === 'sales' || hdr.indexOf('sales') >= 0 || hdr.indexOf('nama sales') >= 0) && hSalesL < 0) hSalesL = c;
         if (hdr === 'handle' && hHandleL < 0) hHandleL = c;
-        if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal') && hModalL < 0) hModalL = c;
+        if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal' || hdr.indexOf('harga beli') >= 0) && hModalL < 0) hModalL = c;
       }
 
       var lapSheet = ss.insertSheet('Laporan Lengkap');
