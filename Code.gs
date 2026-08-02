@@ -1185,7 +1185,8 @@ function generatePenjualanExcel(startDate, endDate) {
         // Aggregate per toko
         var tokoStats = {};  // toko → {unit, omset, items:[]}
         for (var i = 0; i < rows.length; i++) {
-          var toko = String(rows[i][hToko] || '').trim() || '-';
+          var toko = String(rows[i][hToko] || '').trim();
+          if (!toko || toko === '-') continue;  // skip empty/unknown
           var omset = hPenjGrafik >= 0 ? parseHarga(rows[i][hPenjGrafik]) : 0;
           if (!tokoStats[toko]) tokoStats[toko] = {unit: 0, omset: 0};
           tokoStats[toko].unit++;
