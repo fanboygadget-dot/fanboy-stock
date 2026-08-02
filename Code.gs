@@ -1457,8 +1457,8 @@ function generatePenjualanExcel(startDate, endDate) {
 
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
-        var toko = hTokoL >= 0 ? String(r[hTokoL] || '').trim() : '-';
-        if (!toko) toko = '-';
+        var toko = hTokoL >= 0 ? String(r[hTokoL] || '').trim() : '';
+        if (!toko || toko === '-') continue;  // skip empty/unknown
         var omset = hPenjL >= 0 ? parseHarga(r[hPenjL]) : 0;
         var modal = hModalL >= 0 ? parseHarga(r[hModalL]) : 0;
         var model = hNamaBarangL >= 0 ? String(r[hNamaBarangL] || '').trim() : '-';
