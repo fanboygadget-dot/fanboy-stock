@@ -912,7 +912,11 @@ function generateSalesReportCSV() {
     var sn = String(r[1] || '').toUpperCase().trim();
     var lokasi = snLokasi[sn] || '-';
     var harga = parseHarga(r[4]);
-    var sales = String(r[6] || '-');
+    // Prefer Staff_Handle (col 7) if it's a real staff name, fallback to Sales (col 6)
+    var _kw = ['tiktok'];
+    function _isSN(v) { var l=v.toLowerCase(); if(l === 'tiktok' || l === 'sales') return false; return l !== '' && l !== '-'; }
+    var rawS = String(r[6] || '').trim();
+    var sales = (rawS && rawS !== '-' && _isSN(rawS)) ? rawS : '-';
     
     if (!tokoStats[lokasi]) tokoStats[lokasi] = {count:0, total:0};
     tokoStats[lokasi].count++;
@@ -949,6 +953,7 @@ function generateSalesReportCSV() {
   csv += 'Rank,Sales,Unit Terjual,Omset\n';
   var sorted = Object.keys(salesStats).sort(function(a,b){ return salesStats[b].total - salesStats[a].total; });
   sorted.forEach(function(s, idx) {
+    if (s === '-') return;  // skip entries without staff name
     csv += (idx+1) + ',"' + s + '",' + salesStats[s].count + ',' + salesStats[s].total + '\n';
   });
   
@@ -1259,9 +1264,12 @@ function generatePenjualanExcel(startDate, endDate) {
 
         // Chart 3: Peringkat Sales Global (Bar Chart)
         if (hSalesGrafik >= 0) {
+          function _isStaffG(v) { var l=v.toLowerCase(); return l !== '' && l !== '-' && l !== 'tiktok' && l !== 'sales'; }
           var salesGrafikData = {};
           for (var i = 0; i < rows.length; i++) {
-            var sn = String(rows[i][hSalesGrafik] || '').trim() || '-';
+            var rawS = String(rows[i][hSalesGrafik] || '').trim();
+            var sn = (rawS && rawS !== '-' && _isStaffG(rawS)) ? rawS : null;
+            if (!sn) continue;  // skip empty, dash, store names
             var omset = hPenjGrafik >= 0 ? parseHarga(rows[i][hPenjGrafik]) : 0;
             if (!salesGrafikData[sn]) salesGrafikData[sn] = {unit: 0, omset: 0};
             salesGrafikData[sn].unit++;
@@ -1345,14 +1353,23 @@ function generatePenjualanExcel(startDate, endDate) {
         if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal') && hModal < 0) hModal = c;
       }
 
+      // Helper: check if value is a real staff name (not a store/channel name)
+      function _isStaffName(val) {
+        var v = val.toLowerCase();
+        return v !== '' && v !== '-' && v !== 'tiktok' && v !== 'sales';
+      }
+
       if (hSales >= 0 && hHandle >= 0) {
         var salesStats = {};  // name → {unit, omset, keuntungan}
         var handlerStats = {};
 
         for (var i = 0; i < rows.length; i++) {
           var r = rows[i];
-          var sales = String(r[hSales] || '').trim() || '-';
-          var handler = String(r[hHandle] || '').trim() || '-';
+          var rawSales = String(r[hSales] || '').trim();
+          var rawHandler = String(r[hHandle] || '').trim();
+          // Use Sales col as primary, filter out store/channel names
+          var sales = (rawSales && rawSales !== '-' && _isStaffName(rawSales)) ? rawSales : '_KOSONG_';
+          var handler = (rawHandler && rawHandler !== '-' && _isStaffName(rawHandler)) ? rawHandler : '_KOSONG_';
           var omset = hPenjualan >= 0 ? parseHarga(r[hPenjualan]) : 0;
           var modal = hModal >= 0 ? parseHarga(r[hModal]) : 0;
           var untung = omset - modal;
@@ -1373,7 +1390,10 @@ function generatePenjualanExcel(startDate, endDate) {
 
         // -- Section 1: Per Sales --
         var salesArr = [];
-        for (var name in salesStats) salesArr.push({name:name, unit:salesStats[name].unit, omset:salesStats[name].omset, keuntungan:salesStats[name].keuntungan});
+        for (var name in salesStats) {
+          if (name === '_KOSONG_') continue;  // skip empty
+          salesArr.push({name:name, unit:salesStats[name].unit, omset:salesStats[name].omset, keuntungan:salesStats[name].keuntungan});
+        }
         salesArr.sort(function(a,b){ return b.omset - a.omset; });
 
         bonusSheet.getRange(1, 1).setValue('RINCIAN BONUS SALES').setFontWeight('bold').setFontSize(14);
@@ -1401,7 +1421,10 @@ function generatePenjualanExcel(startDate, endDate) {
         // -- Section 2: Per Handler --
         var handlerStartRow = salesTotalRow + 3;
         var handlerArr = [];
-        for (var name in handlerStats) handlerArr.push({name:name, unit:handlerStats[name].unit, omset:handlerStats[name].omset, keuntungan:handlerStats[name].keuntungan});
+        for (var name in handlerStats) {
+          if (name === '_KOSONG_') continue;  // skip empty
+          handlerArr.push({name:name, unit:handlerStats[name].unit, omset:handlerStats[name].omset, keuntungan:handlerStats[name].keuntungan});
+        }
         handlerArr.sort(function(a,b){ return b.omset - a.omset; });
 
         bonusSheet.getRange(handlerStartRow, 1).setValue('RINCIAN BONUS HANDLER').setFontWeight('bold').setFontSize(14);
@@ -1462,9 +1485,12 @@ function generatePenjualanExcel(startDate, endDate) {
         var omset = hPenjL >= 0 ? parseHarga(r[hPenjL]) : 0;
         var modal = hModalL >= 0 ? parseHarga(r[hModalL]) : 0;
         var model = hNamaBarangL >= 0 ? String(r[hNamaBarangL] || '').trim() : '-';
-        var sales = hSalesL >= 0 ? String(r[hSalesL] || '').trim() : '-';
-        if (!sales) sales = '-';
-        var handler = hHandleL >= 0 ? String(r[hHandleL] || '').trim() : '-';
+        // Prefer Handle if it's a real staff name, else fallback to Sales
+        function _isStaffL(v) { var l=v.toLowerCase(); return l !== '' && l !== '-' && l !== 'tiktok' && l !== 'sales'; }
+        var rawSalesL = hSalesL >= 0 ? String(r[hSalesL] || '').trim() : '';
+        var rawHandlerL = hHandleL >= 0 ? String(r[hHandleL] || '').trim() : '';
+        var sales = (rawSalesL && rawSalesL !== '-' && _isStaffL(rawSalesL)) ? rawSalesL : '-';
+        var handler = (rawHandlerL && rawHandlerL !== '-' && _isStaffL(rawHandlerL)) ? rawHandlerL : '-';
 
         // Per toko
         if (!tokoData[toko]) tokoData[toko] = {unit: 0, omset: 0, modal: 0, models: {}};
@@ -1481,14 +1507,16 @@ function generatePenjualanExcel(startDate, endDate) {
         if (!tokoModal[toko]) tokoModal[toko] = 0;
         tokoModal[toko] += modal;
 
-        // Global sales (across all stores)
-        if (!globalSalesData[sales]) globalSalesData[sales] = {unit: 0, omset: 0, keuntungan: 0, toko: {}};
-        globalSalesData[sales].unit++;
-        globalSalesData[sales].omset += omset;
-        globalSalesData[sales].keuntungan += (omset - modal);
-        if (!globalSalesData[sales].toko[toko]) globalSalesData[sales].toko[toko] = {unit: 0, omset: 0};
-        globalSalesData[sales].toko[toko].unit++;
-        globalSalesData[sales].toko[toko].omset += omset;
+        // Global sales (across all stores) — skip entries without valid staff name
+        if (sales !== '-') {
+          if (!globalSalesData[sales]) globalSalesData[sales] = {unit: 0, omset: 0, keuntungan: 0, toko: {}};
+          globalSalesData[sales].unit++;
+          globalSalesData[sales].omset += omset;
+          globalSalesData[sales].keuntungan += (omset - modal);
+          if (!globalSalesData[sales].toko[toko]) globalSalesData[sales].toko[toko] = {unit: 0, omset: 0};
+          globalSalesData[sales].toko[toko].unit++;
+          globalSalesData[sales].toko[toko].omset += omset;
+        }
       }
 
       var tokoNames = [];
@@ -1791,6 +1819,9 @@ function updateInvoiceField(data) {
       if (data.field === 'harga' || data.field === 'dp' || data.field === 'sisa') {
         val = formatRupiah(parseHarga(val));
         invSheet.getRange(i + 1, col + 1).setValue(val);
+      } else if (data.field === 'modal') {
+        var cleanNum = parseHarga(val);
+        invSheet.getRange(i + 1, col + 1).setValue(cleanNum).setNumberFormat('#,##0');
       } else {
         invSheet.getRange(i + 1, col + 1).setValue(String(val));
       }
@@ -1819,8 +1850,13 @@ function updateTradeInField(data) {
       var val = data.value;
       if (data.field === 'harga' || data.field === 'dp' || data.field === 'sisa') {
         val = formatRupiah(parseHarga(val));
+        invSheet.getRange(i + 1, col + 1).setValue(val);
+      } else if (data.field === 'modal') {
+        var cleanNum = parseHarga(val);
+        invSheet.getRange(i + 1, col + 1).setValue(cleanNum).setNumberFormat('#,##0');
+      } else {
+        invSheet.getRange(i + 1, col + 1).setValue(String(val));
       }
-      invSheet.getRange(i + 1, col + 1).setValue(val);
       return {ok: true, msg: data.field + ' Trade-In diupdate'};
     }
   }

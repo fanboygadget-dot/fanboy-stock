@@ -313,7 +313,7 @@
         <div class="nav-item" onclick="switchPage('dbsold')" data-page="dbsold">
           <i class="fas fa-database"></i> <span>Database Sold</span>
         </div>
-        <div class="nav-item" onclick="switchPage('laporan')" data-page="laporan">
+        <div class="nav-item staff-hidden" onclick="switchPage('laporan')" data-page="laporan">
           <i class="fas fa-file-excel"></i> <span>Laporan Penjualan</span>
         </div>
         <div class="nav-item" onclick="switchPage('geser')" data-page="geser">
@@ -739,6 +739,7 @@
                     <option value="LIDYA">LIDYA</option>
                     <option value="DIO">DIO</option>
                     <option value="BAGUS">BAGUS</option>
+                    <option value="BAYU">BAYU</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -757,6 +758,7 @@
                     <option value="DIO">DIO</option>
                     <option value="LIDYA">LIDYA</option>
                     <option value="BAGUS">BAGUS</option>
+                    <option value="BAYU">BAYU</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -2401,8 +2403,10 @@
     
     function downloadRiwayatInvoice(idx) {
       var r = riwayatData[idx];
-      var url = 'https://script.google.com/macros/s/AKfycbyg_OuEZbnvw-7VzFPCogzfl4k-C2ko533L_BKO_VSxeIX9gbEX2mST6Qj9kT3rnJUo/exec?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||'');
-      window.open(url,'_blank');
+      google.script.run.withSuccessHandler(function(url) {
+        if(!url) { alert('Gagal mendapatkan URL'); return; }
+        window.open(url + '?page=pdf&inv='+encodeURIComponent(r.invNo||'')+'&sn='+encodeURIComponent(r.sn||''), '_blank');
+      }).getWebAppUrl();
     }
     
     function editHarga(idx) {
@@ -3029,6 +3033,84 @@
       }).getStockData();
       loadDashboard();
     }
+  </script>
+
+  <!-- PWA: Service Worker + Install Prompt -->
+  <script>
+    // Register service worker via Blob URL (Apps Script can't serve sw.js separately)
+    if ('serviceWorker' in navigator) {
+      var swCode = `
+        var CACHE_NAME = 'fanboy-stock-v1';
+        var URLS_TO_CACHE = [];
+
+        self.addEventListener('install', function(e) {
+          self.skipWaiting();
+        });
+
+        self.addEventListener('activate', function(e) {
+          e.waitUntil(clients.claim());
+        });
+
+        self.addEventListener('fetch', function(e) {
+          if (e.request.url.indexOf('google.com/recaptcha') !== -1) return;
+          if (e.request.url.indexOf('googleapis.com/js') !== -1) return;
+          e.respondWith(
+            fetch(e.request).then(function(response) {
+              if (response && response.status === 200 && response.type === 'basic') {
+                var clone = response.clone();
+                caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
+              }
+              return response;
+            }).catch(function() {
+              return caches.match(e.request);
+            })
+          );
+        });
+      `;
+      var blob = new Blob([swCode], {type: 'application/javascript'});
+      navigator.serviceWorker.register(URL.createObjectURL(blob), {scope: '/'}).catch(function(){});
+    }
+
+    // Install prompt
+    var deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallBanner();
+    });
+
+    function showInstallBanner() {
+      if (document.getElementById('pwaInstallBanner')) return;
+      var banner = document.createElement('div');
+      banner.id = 'pwaInstallBanner';
+      banner.innerHTML = '<div style="position:fixed;bottom:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Inter,sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.3)">' +
+        '<div style="display:flex;align-items:center;gap:10px"><i class="fas fa-download" style="font-size:20px"></i><div><div style="font-weight:600;font-size:14px">Install Fanboy Stock</div><div style="font-size:12px;opacity:0.85">Akses lebih cepat dari home screen</div></div></div>' +
+        '<div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:#2563eb;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Install</button>' +
+        '<button onclick="dismissInstall()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer"><i class="fas fa-times"></i></button></div></div>';
+      document.body.appendChild(banner);
+    }
+
+    function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(choice) {
+        deferredPrompt = null;
+        var b = document.getElementById('pwaInstallBanner');
+        if (b) b.remove();
+      });
+    }
+
+    function dismissInstall() {
+      var b = document.getElementById('pwaInstallBanner');
+      if (b) b.remove();
+      sessionStorage.setItem('pwa_dismissed', '1');
+    }
+
+    // Don't show if already dismissed or already installed
+    window.addEventListener('load', function() {
+      if (sessionStorage.getItem('pwa_dismissed')) return;
+      if (window.matchMedia('(display-mode: standalone)').matches) return;
+    });
   </script>
 </body>
 </html>
