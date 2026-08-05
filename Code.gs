@@ -624,6 +624,14 @@ function createInvoice(data) {
     var catatan = data.catatan || '';
     // Filter: buang catatan yang hanya angka (harga yang salah input)
     if (/^\d[\d.,\s]*$/.test(catatan.replace(/rp\s*/gi, '').trim())) catatan = '';
+    // Filter: hapus teks garansi (tidak perlu disimpan di sheet)
+    if (catatan) {
+      var garansiKW = /(garansi|mencover|mecover|human\s*ero[r]|barang\s+yang\s+di\s+beli|lcd\s*&\s*camera|kecuali\s+lcd|kecuali\s+layar|kecuali\s+camera|exclude\s+lcd|exclude\s+layar|tidak\s+termasuk\s+lcd|tidak\s+termasuk\s+layar|tidak\s+termasuk\s+camera|tanpa\s+termasuk\s+layar|terima\s+kasih\s+atas\s+pembelian)/i;
+      var lines = catatan.split('\n').filter(function(l) {
+        return l.trim() && !garansiKW.test(l.trim());
+      });
+      catatan = lines.join('\n').replace(/\s*\\\s*$/,'').trim();
+    }
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
     invSheet.appendRow([nextNo, sn, buyerHP, '', harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
