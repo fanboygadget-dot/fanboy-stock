@@ -20,13 +20,13 @@
 <div style="background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;max-width:700px;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif">
 
   <!-- Header -->
-  <div style="background:<?= data.isTradeIn ? '#7c3aed' : '#0f172a' ?>;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center">
+  <div style="background:<?= data.isTradeIn ? '#7c3aed' : ((data.payment && data.payment.toUpperCase() === 'DP') ? '#f59e0b' : '#0f172a') ?>;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center">
     <div>
       <div style="font-size:20px;font-weight:700">FANBOY <?= data.location ? data.location : 'STORE' ?></div>
       <div style="font-size:11px;opacity:.7">Premium Used Device</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:24px;font-weight:700;letter-spacing:2px"><?= data.isTradeIn ? 'TRADE-IN' : 'INVOICE' ?></div>
+      <div style="font-size:24px;font-weight:700;letter-spacing:2px"><?= data.isTradeIn ? 'TRADE-IN' : ((data.payment && data.payment.toUpperCase() === 'DP') ? 'INVOICE DP' : 'INVOICE') ?></div>
       <div style="font-size:12px;font-weight:600"><?= data.invoiceNo ?></div>
     </div>
   </div>

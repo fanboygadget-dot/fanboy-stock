@@ -677,8 +677,16 @@
                       <option value="SHOPEEPAYLATER">SHOPEEPAYLATER</option>
                       <option value="KREDIVO">KREDIVO</option>
                       <option value="MARKETPLACE">MARKETPLACE</option>
+                      <option value="DP">DP (Down Payment)</option>
                     </select>
                   </div>
+                </div>
+                <div id="dpNominalWrap" style="display:none">
+                  <div class="form-group">
+                    <label>Nominal DP *</label>
+                    <input type="text" id="jDpNominal" placeholder="Contoh: 2000000" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                  </div>
+                  <div id="dpSummary" style="margin-top:6px;padding:8px 12px;background:#fef3c7;border-radius:6px;font-size:12px;color:#92400e;display:none"></div>
                 </div>
                 <div id="splitPayWrap" style="display:none;grid-column:1/-1">
                   <div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">
@@ -693,6 +701,7 @@
                           <option value="SHOPEEPAYLATER">SHOPEEPAYLATER</option>
                           <option value="KREDIVO">KREDIVO</option>
                           <option value="MARKETPLACE">MARKETPLACE</option>
+                          <option value="DP">DP (Down Payment)</option>
                         </select>
                       </div>
                       <div>
@@ -711,6 +720,7 @@
                           <option value="SHOPEEPAYLATER">SHOPEEPAYLATER</option>
                           <option value="KREDIVO">KREDIVO</option>
                           <option value="MARKETPLACE">MARKETPLACE</option>
+                          <option value="DP">DP (Down Payment)</option>
                         </select>
                       </div>
                       <div>
@@ -760,13 +770,6 @@
                     <option value="BAGUS">BAGUS</option>
                     <option value="BAYU">BAYU</option>
                   </select>
-                </div>
-                <div class="form-group">
-                  <label>DP (Down Payment)</label>
-                  <input type="text" id="jDP" placeholder="0" oninput="this.value=this.value.replace(/[^0-9]/g,'');updateDPInfo()">
-                  <div id="dpInfo" style="font-size:11px;color:var(--gray);margin-top:2px;display:none">
-                    <span id="dpInfoText"></span>
-                  </div>
                 </div>
                 <div class="form-group" style="grid-column:1/-1">
                   <label>Catatan (Opsional)</label>
@@ -1042,6 +1045,7 @@
         var h = 
           '<div class="stat-card"><div class="stat-icon blue"><i class="fas fa-box"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.total)+'</div><div class="lbl">Total Stok</div></div></div>' +
           '<div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.tersedia)+'</div><div class="lbl">Available</div></div></div>' +
+          (d.dpCount ? '<div class="stat-card"><div class="stat-icon" style="background:#fef3c7;color:#f59e0b"><i class="fas fa-hourglass-half"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.dpCount)+'</div><div class="lbl">DP</div></div></div>' : '') +
           '<div class="stat-card"><div class="stat-icon orange"><i class="fas fa-undo"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.returned||0)+'</div><div class="lbl">Return</div></div></div>' +
           '<div class="stat-card"><div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.problems||0)+'</div><div class="lbl">Problems</div></div></div>' +
           '<div class="stat-card"><div class="stat-icon" style="background:#e2e8f0;color:#475569"><i class="fas fa-handshake"></i></div><div class="stat-info"><div class="num">'+fmtNum(d.sold)+'</div><div class="lbl">Sold</div></div></div>';
@@ -1058,6 +1062,7 @@
             h += '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#0f172a">'+loc+'</div>';
             h += '<div style="font-size:12px;color:#6b7280">Available: <b style="color:#16a34a">'+ls.available+'</b></div>';
             h += '<div style="font-size:12px;color:#6b7280">Sold: <b style="color:#dc2626">'+ls.sold+'</b></div>';
+            if(ls.dp) h += '<div style="font-size:12px;color:#6b7280">DP: <b style="color:#f59e0b">'+ls.dp+'</b></div>';
             h += '<div style="font-size:12px;color:#6b7280">Servis: <b style="color:#f59e0b">'+ls.servis+'</b></div>';
             h += '<div style="font-size:12px;color:#6b7280">Problem: <b style="color:#ef4444">'+ls.problem+'</b></div>';
             h += '</div>';
@@ -1076,7 +1081,7 @@
         recent.forEach(function(r){
           h+='<tr><td><b>'+esc(r.sn)+'</b></td><td>'+esc(r.model)+'</td><td>'+esc(r.spekSingkat||'-')+'</td>';
           h+='<td>Rp '+fmtNum(r.hargaJual||0)+'</td><td>'+esc(r.lokasi)+'</td>';
-          h+='<td><span class="badge badge-'+(r.status==='Available'?'green':r.status==='Sold'?'red':r.status==='Returned'?'orange':r.status==='problem'?'yellow':'gray')+'">'+esc(r.status)+'</span></td></tr>';
+          h+='<td><span class="badge badge-'+(r.status==='Available'?'green':r.status==='Sold'?'red':r.status==='DP'?'blue':r.status==='Returned'?'orange':r.status==='problem'?'yellow':'gray')+'">'+esc(r.status)+'</span></td></tr>';
         });
         h+='</table>';
         $('recentStock').innerHTML=h;
@@ -2004,7 +2009,37 @@
       $('singlePayWrap').style.display = isSplit ? 'none' : 'block';
       $('splitPayWrap').style.display = isSplit ? 'block' : 'none';
       $('jPayment').required = !isSplit;
+      // Hide DP nominal when switching to split
+      if(isSplit) $('dpNominalWrap').style.display = 'none';
     }
+    
+    // DP payment handler
+    function toggleDpNominal() {
+      var val = $('jPayment').value;
+      var isDp = val === 'DP';
+      $('dpNominalWrap').style.display = isDp ? 'block' : 'none';
+      $('jDpNominal').required = isDp;
+      if(isDp) updateDpSummary();
+    }
+    function updateDpSummary() {
+      var dpAmt = Number(($('jDpNominal').value||'').replace(/[^0-9]/g,'')) || 0;
+      var total = 0;
+      jualCart.forEach(function(r){ total += Number(r.dealPrice||r.hargaJual||0); });
+      if(dpAmt > 0 && total > 0) {
+        var sisa = Math.max(0, total - dpAmt);
+        $('dpSummary').style.display = 'block';
+        $('dpSummary').innerHTML = '💰 DP: <b>Rp '+fmtNum(dpAmt)+'</b> | Sisa: <b>Rp '+fmtNum(sisa)+'</b> dari total Rp '+fmtNum(total);
+      } else {
+        $('dpSummary').style.display = 'none';
+      }
+    }
+    // Attach onchange to single payment dropdown
+    (function(){
+      var el = $('jPayment');
+      if(el) { var orig = el.onchange; el.onchange = function(){ if(orig) orig(); toggleDpNominal(); }; }
+      var dpEl = $('jDpNominal');
+      if(dpEl) dpEl.addEventListener('input', updateDpSummary);
+    })();
     
     function submitJual(e) {
       e.preventDefault();
@@ -2031,12 +2066,17 @@
         paymentStr = p1+' Rp'+fmtNum(a1)+' + '+p2+' Rp'+fmtNum(a2);
       } else {
         if(!$('jPayment').value) { alert('Pilih Metode Bayar'); $('jPayment').focus(); return; }
-        paymentStr = $('jPayment').value;
+        if($('jPayment').value === 'DP') {
+          var dpNom = Number(($('jDpNominal').value||'').replace(/[^0-9]/g,'')) || 0;
+          if(!dpNom) { alert('Masukkan Nominal DP'); $('jDpNominal').focus(); return; }
+          paymentStr = 'DP Rp'+fmtNum(dpNom);
+        } else {
+          paymentStr = $('jPayment').value;
+        }
       }
       
       if(!$('jSales').value) { alert('Pilih Sales'); $('jSales').focus(); return; }
       if(!$('jHandler').value) { alert('Pilih Handler'); $('jHandler').focus(); return; }
-      var dpVal = Number(($('jDP').value||'').replace(/[^0-9]/g,'')) || 0;
       var catatanVal = $('jCatatan').value.trim();
       // Filter: buang catatan yang hanya angka (harga yang salah input)
       if (/^\d[\d.,\s]*$/.test(catatanVal.replace(/rp\s*/gi, '').trim())) catatanVal = '';
@@ -2047,9 +2087,10 @@
         payment: paymentStr,
         sales: $('jSales').value.trim(),
         handler: $('jHandler').value.trim(),
-        dpAmount: dpVal,
         catatan: catatanVal,
-        staff: currentUser ? (currentUser.name || '') : ''
+        staff: currentUser ? (currentUser.name || '') : '',
+        isDp: $('jPayment').value === 'DP',
+        dpAmount: $('jPayment').value === 'DP' ? (Number(($('jDpNominal').value||'').replace(/[^0-9]/g,'')) || 0) : 0
       };
       
       // Trade-in data
@@ -2111,6 +2152,8 @@
       var buyer = $('jBuyer').value.trim();
       var hp = $('jHp').value.trim();
       var payment = $('jPayment').value;
+      var isDp = $('jPayment').value === 'DP';
+      var dpAmt = isDp ? (Number(($('jDpNominal').value||'').replace(/[^0-9]/g,'')) || 0) : 0;
       var sales = $('jSales').value.trim();
       var handler = $('jHandler').value.trim();
       
@@ -2119,7 +2162,7 @@
       // Header
       h+='<div style="background:#0f172a;color:#fff;padding:20px 24px;display:flex;justify-content:space-between;align-items:center">';
       h+='<div><div style="font-size:20px;font-weight:700">FANBOY '+lokasi.toUpperCase()+'</div><div style="font-size:11px;opacity:.7">Premium Used Device</div></div>';
-      h+='<div style="text-align:right"><div style="font-size:24px;font-weight:700;letter-spacing:2px">INVOICE</div><div style="font-size:12px;font-weight:600">'+esc(invNo)+'</div></div></div>';
+      h+='<div style="text-align:right"><div style="font-size:24px;font-weight:700;letter-spacing:2px">'+(isDp?'INVOICE DP':'INVOICE')+'</div><div style="font-size:12px;font-weight:600">'+esc(invNo)+'</div></div></div>';
       // Buyer
       h+='<div style="display:flex;justify-content:space-between;padding:16px 24px">';
       h+='<div><div style="font-size:12px;color:#64748b;margin-bottom:6px">Bill To:</div>';
@@ -2141,17 +2184,6 @@
       h+='<div style="background:#0f172a;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">';
       h+='<span style="font-size:16px;font-weight:600">TOTAL ('+items.length+' item)</span>';
       h+='<span style="font-size:22px;font-weight:700">Rp '+fmtNum(totalHarga)+'</span></div>';
-      // DP
-      var dpAmount = Number($('jDP').value.replace(/[^0-9]/g,'')) || 0;
-      if (dpAmount > 0) {
-        var sisaBayar = Math.max(0, totalHarga - dpAmount - (r.tradeIn ? (r.tradeIn.hargaBeli||0) : 0));
-        h+='<div style="background:#eff6ff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center">';
-        h+='<span style="font-size:14px;font-weight:600;color:#1e40af">💰 DP (Down Payment)</span>';
-        h+='<span style="font-size:16px;font-weight:700;color:#2563eb">Rp '+fmtNum(dpAmount)+'</span></div>';
-        h+='<div style="background:#fef3c7;padding:12px 24px;display:flex;justify-content:space-between;align-items:center">';
-        h+='<span style="font-size:14px;font-weight:600;color:#92400e">SISA BAYAR</span>';
-        h+='<span style="font-size:18px;font-weight:700;color:#b45309">Rp '+fmtNum(sisaBayar)+'</span></div>';
-      }
       // Trade-In deduction
       if (r.tradeIn) {
         var ti = r.tradeIn;
@@ -2164,9 +2196,19 @@
         h+='<span style="font-size:22px;font-weight:700">Rp '+fmtNum(Math.max(0,bayarFinal))+'</span></div>';
       }
       // Payment badge
-      var payBadge = payment==='CASH'?'#d1fae5':'#dbeafe';
-      var payColor = payment==='CASH'?'#16a34a':'#2563eb';
+      var payBadge = payment==='CASH'?'#d1fae5':payment.indexOf('DP')===0?'#fef3c7':'#dbeafe';
+      var payColor = payment==='CASH'?'#16a34a':payment.indexOf('DP')===0?'#b45309':'#2563eb';
       h+='<div style="text-align:center;padding:12px;background:'+payBadge+';color:'+payColor+';font-weight:700;font-size:15px">💳 '+esc(payment)+'</div>';
+      // DP summary
+      if(isDp && dpAmt) {
+        var sisa = Math.max(0, totalHarga - dpAmt);
+        h+='<div style="background:#fef3c7;padding:14px 24px;border-top:2px solid #f59e0b">';
+        h+='<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:14px;font-weight:600;color:#92400e">📋 RINCIAN DP:</span></div>';
+        h+='<div style="display:flex;justify-content:space-between;font-size:13px"><span>Total Harga</span><b>Rp '+fmtNum(totalHarga)+'</b></div>';
+        h+='<div style="display:flex;justify-content:space-between;font-size:13px;color:#16a34a"><span>DP Dibayar</span><b>Rp '+fmtNum(dpAmt)+'</b></div>';
+        h+='<div style="display:flex;justify-content:space-between;font-size:15px;margin-top:6px;padding-top:6px;border-top:1px dashed #f59e0b"><span style="font-weight:700;color:#dc2626">Sisa Pelunasan</span><b style="color:#dc2626;font-size:18px">Rp '+fmtNum(sisa)+'</b></div>';
+        h+='</div>';
+      }
       // Catatan
       var catatan = $('jCatatan').value.trim();
       if (catatan) {
@@ -2234,9 +2276,10 @@
       if($('jHp')) $('jHp').value='';
       if($('jSales')) $('jSales').value='';
       if($('jHandler')) $('jHandler').value='';
-      if($('jDP')) $('jDP').value='';
       if($('jCatatan')) $('jCatatan').value='';
-      if($('dpInfo')) $('dpInfo').style.display='none';
+      if($('jDpNominal')) $('jDpNominal').value='';
+      if($('dpNominalWrap')) $('dpNominalWrap').style.display='none';
+      if($('dpSummary')) $('dpSummary').style.display='none';
       resetTradeIn();
     }
     
@@ -2266,7 +2309,7 @@
       }
       if(!filtered.length) { $('riwayatTable').innerHTML='<p style="padding:20px;color:var(--gray)">Tidak ada data.</p>'; return; }
       
-      var h='<table><tr><th>Tanggal</th><th>Invoice</th><th>Serial</th><th>Model</th><th>Pembeli</th><th>No. HP</th><th>Harga Jual</th><th>DP</th><th>Sisa</th><th>Sales</th><th>Handler</th><th>Catatan</th><th>Aksi</th></tr>';
+      var h='<table><tr><th>Tanggal</th><th>Invoice</th><th>Serial</th><th>Model</th><th>Pembeli</th><th>No. HP</th><th>Harga Jual</th><th>Metode</th><th>Rincian</th><th>Sales</th><th>Handler</th><th>Catatan</th><th>Aksi</th></tr>';
       filtered.forEach(function(r,i){
         var origIdx = riwayatData.indexOf(r);
         // Split buyer "Nama / HP" if contains " / "
@@ -2304,15 +2347,19 @@
           hargaHtml += '<br><span style="color:#16a34a;font-size:12px;font-weight:700">= Rp '+fmtNum(r.sisaBayar || (r.harga - totalTukar))+' bayar</span>';
         }
         h+='<td style="text-align:right;font-weight:600" id="harga_'+i+'">'+hargaHtml+'</td>';
-        h+='<td style="text-align:right;color:#2563eb;font-weight:600">'+(r.dpAmount?'Rp '+fmtNum(r.dpAmount):'-')+'</td>';
-        h+='<td style="text-align:right;color:#b45309;font-weight:600">'+(r.sisaBayar?'Rp '+fmtNum(r.sisaBayar):'-')+'</td>';
+        // Metode bayar badge
+        var metodeLabel = r.metode || 'Cash';
+        var metodeColors = {'Transfer':'#2563eb','Cash':'#16a34a','Kartu Kredit':'#7c3aed','Kredivo':'#0ea5e9','ShopeePayLater':'#ea580c','Trade-In':'#6366f1','Marketplace':'#059669','EDC':'#7c3aed','DP':'#f59e0b'};
+        var mColor = metodeColors[metodeLabel] || '#64748b';
+        h+='<td><span style="background:'+mColor+'15;color:'+mColor+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">'+esc(metodeLabel)+'</span></td>';
+        h+='<td style="font-size:11px;color:var(--gray);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(r.rincian||'')+'">'+esc(r.rincian||'-')+'</td>';
         h+='<td>'+esc(r.sales)+'</td>';
         h+='<td>'+esc(r.handler)+'</td>';
         h+='<td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(r.catatan)+'">'+esc(r.catatan||'-')+'</td>';
         h+='<td style="white-space:nowrap">';
         h+='<button class="btn btn-primary btn-sm" onclick="downloadRiwayatInvoice('+origIdx+')" style="padding:4px 8px;font-size:11px"><i class="fas fa-download"></i></button> ';
-        if(r.status && r.status.toUpperCase()==='DP') {
-          h+='<button class="btn btn-sm" onclick="markLunas('+origIdx+')" style="padding:4px 8px;font-size:11px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer"><i class="fas fa-check-circle"></i> Lunas</button> ';
+        if(r.status==='DP') {
+          h+='<button class="btn btn-sm" onclick="markDpLunas(\''+esc(r.invNo)+'\',\''+esc(r.sn)+'\')" style="padding:4px 8px;font-size:11px;background:#16a34a;color:#fff;border:none" title="Tandai Lunas"><i class="fas fa-check-circle"></i> LUNAS</button> ';
         }
         if(typeof isAdmin!=='undefined' && isAdmin) {
           h+='<button class="btn btn-outline btn-sm" onclick="editInvoice('+origIdx+')" style="padding:4px 8px;font-size:11px;background:#6366f1;color:#fff;border:none" title="Edit Invoice"><i class="fas fa-pencil-alt"></i> Edit</button>';
@@ -2321,6 +2368,20 @@
       });
       h+='</table>';
       $('riwayatTable').innerHTML = h;
+    }
+    
+    function markDpLunas(invNo, sn) {
+      if(!confirm('Tandai invoice '+invNo+' (SN: '+sn+') sebagai LUNAS?')) return;
+      google.script.run.withSuccessHandler(function(r) {
+        if(r.ok) {
+          alert('✅ ' + r.msg);
+          loadRiwayat();
+        } else {
+          alert('❌ ' + r.msg);
+        }
+      }).withFailureHandler(function(err) {
+        alert('❌ Error: ' + (err.message || err));
+      }).markInvoiceLunas({invNo: invNo, sn: sn});
     }
     
     function editInvoice(idx) {
@@ -2338,8 +2399,7 @@
         '<div style="margin-bottom:10px"><label>Harga</label><input id="editHarga" type="text" value="'+fmtNum(r.harga||0)+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
         '<div style="margin-bottom:10px"><label>Sales</label><input id="editSales" type="text" value="'+esc(r.sales||'')+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
         '<div style="margin-bottom:10px"><label>Handler</label><input id="editHandler" type="text" value="'+esc(r.handler||'')+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
-        '<div style="margin-bottom:10px"><label>DP</label><input id="editDP" type="text" value="'+fmtNum(r.dpAmount||0)+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
-        '<div style="margin-bottom:10px"><label>Sisa</label><input id="editSisa" type="text" value="'+fmtNum(r.sisaBayar||0)+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
+        '<div style="margin-bottom:10px"><label>Rincian Pembayaran</label><input id="editRincian" type="text" value="'+esc(r.rincian||'')+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
         '<div style="margin-bottom:15px"><label>Catatan</label><input id="editCatatan" type="text" value="'+esc(r.catatan||'')+'" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px"></div>'+
         '<div style="display:flex;gap:10px;justify-content:flex-end">'+
         '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:8px 16px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer">Batal</button>'+
@@ -2359,8 +2419,7 @@
         {field:'harga', el:'editHarga', old:r.harga},
         {field:'sales', el:'editSales', old:r.sales},
         {field:'handler', el:'editHandler', old:r.handler},
-        {field:'dp', el:'editDP', old:r.dpAmount},
-        {field:'sisa', el:'editSisa', old:r.sisaBayar},
+        {field:'rincian', el:'editRincian', old:r.rincian},
         {field:'catatan', el:'editCatatan', old:r.catatan}
       ];
       
@@ -2531,38 +2590,9 @@
       }).generatePenjualanExcel(sFormatted, eFormatted);
     }
     
-    function markLunas(idx) {
-      var r = riwayatData[idx];
-      if(!confirm('Tandai invoice '+r.invNo+' sebagai LUNAS?\nSN: '+r.sn+'\nSisa: Rp '+fmtNum(r.sisaBayar||0)+' → Rp 0')) return;
-      
-      google.script.run.withSuccessHandler(function(res){
-        var el = $('riwayatResult');
-        if(res.ok) {
-          riwayatData[idx].status = 'Lunas';
-          riwayatData[idx].dpAmount = r.harga;
-          riwayatData[idx].sisaBayar = 0;
-          renderRiwayat();
-          el.className='msg-success';el.style.display='block';
-          el.innerHTML='✅ '+esc(r.invNo)+' ditandai LUNAS';
-          setTimeout(function(){ el.style.display='none'; }, 3000);
-        } else { alert('Gagal: '+res.msg); }
-      }).markInvoiceLunas({invNo:r.invNo, sn:r.sn});
-    }
-    
     if($('riwayatSearch')) $('riwayatSearch').oninput = renderRiwayat;
     
     // TRADE-IN
-    // DP
-    function updateDPInfo() {
-      var dp = Number(($('jDP').value||'').replace(/[^0-9]/g,'')) || 0;
-      if (dp <= 0) { $('dpInfo').style.display='none'; return; }
-      var total = 0;
-      jualCart.forEach(function(r){ total += r.dealPrice || r.hargaJual || 0; });
-      var sisa = Math.max(0, total - dp);
-      $('dpInfo').style.display='block';
-      $('dpInfoText').innerHTML='DP: <b>Rp '+fmtNum(dp)+'</b> | Sisa: <b>Rp '+fmtNum(sisa)+'</b>';
-    }
-    
     function toggleTradeIn() {
       var show = $('jTradeIn').checked;
       $('tradeInForm').style.display = show ? 'block' : 'none';

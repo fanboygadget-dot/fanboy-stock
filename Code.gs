@@ -74,22 +74,56 @@ function parseRawDate(val) {
   return String(val); // already display string
 }
 
-// --- BULK UPDATE MODAL VLOOKUP ---
+// --- BULK UPDATE MODAL (direct value lookup, no formula) ---
 function bulkUpdateModalVlookup() {
   var ss = SpreadsheetApp.openById(SS_ID);
   var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
   
-  // Set VLOOKUP formula di kolom D (Modal) untuk semua baris data (row 2 sampai lastRow)
-  var formulas = [];
-  for (var r = 2; r <= lastRow; r++) {
-    formulas.push(['=getModalBySN(B' + r + ')']);
+  // Build SN -> Harga_Beli map from Inventaris_Laptop
+  var invSheet = ss.getSheetByName('Inventaris_Laptop');
+  var snModal = {};
+  if (invSheet) {
+    var invData = invSheet.getRange(1, 1, invSheet.getLastRow(), 5).getValues();
+    for (var i = 1; i < invData.length; i++) {
+      var sn = String(invData[i][0] || '').trim().toLowerCase();
+      if (sn) snModal[sn] = parseHarga(invData[i][4]);
+    }
   }
-  sheet.getRange(2, 4, formulas.length, 1).setFormulas(formulas);
-  sheet.getRange(2, 4, formulas.length, 1).setNumberFormat('#,##0');
+  // Fallback: Log_stok_sold
+  var soldSheet = ss.getSheetByName('Log_stok_sold');
+  if (soldSheet) {
+    var soldData = soldSheet.getRange(1, 1, soldSheet.getLastRow(), 5).getValues();
+    for (var i = 1; i < soldData.length; i++) {
+      var sn = String(soldData[i][0] || '').trim().toLowerCase();
+      if (sn && !snModal[sn]) snModal[sn] = parseHarga(soldData[i][4]);
+    }
+  }
+
+  // Read all invoice SNs and set modal values
+  var numRows = lastRow - 1;
+  var snRange = sheet.getRange(2, 2, numRows, 1); // Col B = SN
+  var snValues = snRange.getValues();
+  var modalValues = [];
+  var updated = 0;
+  for (var i = 0; i < snValues.length; i++) {
+    var sn = String(snValues[i][0] || '').trim().toLowerCase();
+    var modal = snModal[sn] || 0;
+    modalValues.push([modal]);
+    if (modal > 0) updated++;
+  }
+  sheet.getRange(2, 4, numRows, 1).setValues(modalValues); // Col D
+  sheet.getRange(2, 4, numRows, 1).setNumberFormat('#,##0');
   
-  return {ok: true, updated: formulas.length, msg: 'Berhasil update ' + formulas.length + ' baris'};
+  // Also fix margin formulas
+  var marginFormulas = [];
+  for (var r = 2; r <= lastRow; r++) {
+    marginFormulas.push(['=E' + r + '-D' + r]);
+  }
+  sheet.getRange(2, 10, marginFormulas.length, 1).setFormulas(marginFormulas);
+  
+  return {ok: true, updated: updated, msg: 'Berhasil update ' + updated + ' baris modal dari ' + numRows + ' total'};
 }
 
 // --- BULK FIX MARGIN FORMULAS ---
@@ -100,8 +134,8 @@ function bulkFixMarginFormulas() {
   if (lastRow < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
   var numRows = lastRow - 1;
 
-  // Fix columns E, M, N: convert "Rp X.XXX" text to numbers
-  var cols = [5, 13, 14]; // E, M, N
+  // Fix column E: convert "Rp X.XXX" text to numbers
+  var cols = [5]; // E only (M=metode text, N=rincian text — skip)
   var converted = 0;
   for (var c = 0; c < cols.length; c++) {
     var col = cols[c];
@@ -122,13 +156,35 @@ function bulkFixMarginFormulas() {
     }
   }
 
-  // Fix column D: VLOOKUP dual sheet
-  var dFormulas = [];
-  for (var r = 2; r <= lastRow; r++) {
-    dFormulas.push(['=getModalBySN(B' + r + ')']);
+  // Fix column D: direct value lookup (no formula)
+  var invSheet = ss.getSheetByName('Inventaris_Laptop');
+  var snModal = {};
+  if (invSheet) {
+    var invData = invSheet.getRange(1, 1, invSheet.getLastRow(), 5).getValues();
+    for (var i = 1; i < invData.length; i++) {
+      var sn = String(invData[i][0] || '').trim().toLowerCase();
+      if (sn) snModal[sn] = parseHarga(invData[i][4]);
+    }
   }
-  sheet.getRange(2, 4, dFormulas.length, 1).setFormulas(dFormulas);
-  sheet.getRange(2, 4, dFormulas.length, 1).setNumberFormat('#,##0');
+  var soldSheet = ss.getSheetByName('Log_stok_sold');
+  if (soldSheet) {
+    var soldData = soldSheet.getRange(1, 1, soldSheet.getLastRow(), 5).getValues();
+    for (var i = 1; i < soldData.length; i++) {
+      var sn = String(soldData[i][0] || '').trim().toLowerCase();
+      if (sn && !snModal[sn]) snModal[sn] = parseHarga(soldData[i][4]);
+    }
+  }
+  var snValues = sheet.getRange(2, 2, numRows, 1).getValues();
+  var modalValues = [];
+  var modalFixed = 0;
+  for (var i = 0; i < snValues.length; i++) {
+    var sn = String(snValues[i][0] || '').trim().toLowerCase();
+    var modal = snModal[sn] || 0;
+    modalValues.push([modal]);
+    if (modal > 0) modalFixed++;
+  }
+  sheet.getRange(2, 4, numRows, 1).setValues(modalValues);
+  sheet.getRange(2, 4, numRows, 1).setNumberFormat('#,##0');
 
   // Fix margin formula: simple E - D
   var marginFormulas = [];
@@ -138,7 +194,25 @@ function bulkFixMarginFormulas() {
   sheet.getRange(2, 10, marginFormulas.length, 1).setFormulas(marginFormulas);
   sheet.getRange(2, 10, marginFormulas.length, 1).setNumberFormat('#,##0');
 
-  return {ok: true, updated: numRows, converted: converted, msg: 'Berhasil fix ' + numRows + ' baris, konversi ' + converted + ' cell text→angka'};
+  return {ok: true, updated: numRows, converted: converted, modalFixed: modalFixed, msg: 'Berhasil fix ' + numRows + ' baris, konversi ' + converted + ' cell text→angka, modal fixed: ' + modalFixed};
+}
+
+// --- FIX DP VALIDATION: Update column G validation to include 'DP' ---
+function fixDpValidation() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return {ok: false, msg: 'Sheet kosong'};
+  
+  // Update data validation on column G (status) to include 'DP'
+  var range = sheet.getRange(2, 7, lastRow - 1, 1);
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Available', 'Sold', 'DP', 'Returned', 'problem', 'Servis'], true)
+    .setAllowInvalid(false)
+    .build();
+  range.setDataValidation(rule);
+  
+  return {ok: true, msg: 'Data validation kolom G updated: Available, Sold, DP, Returned, problem, Servis. Rows: ' + (lastRow - 1)};
 }
 
 // --- BULK UPDATE HARGA TO RUPIAH FORMAT ---
@@ -149,15 +223,15 @@ function bulkUpdateHargaRupiah() {
   if (data.length < 2) return {ok: true, updated: 0, msg: 'Tidak ada data'};
   
   var updated = 0;
-  // Columns to convert: E(idx 4)=harga, M(idx 12)=dp, N(idx 13)=sisa
-  var cols = [4, 12, 13];
+  // Columns to convert: M(idx 12)=dp, N(idx 13)=sisa
+  // NOTE: kolom E(idx 4)=harga TIDAK boleh di-format text karena margin formula =E-D butuh angka
+  var cols = [12, 13];
   for (var i = 1; i < data.length; i++) {
     for (var c = 0; c < cols.length; c++) {
       var colIdx = cols[c];
       var val = String(data[i][colIdx] || '').trim();
       if (!val || val === '0') {
-        // Write 'Rp 0' for empty/zero
-        sheet.getRange(i + 1, colIdx + 1).setValue('Rp 0');
+        sheet.getRange(i + 1, colIdx + 1).setValue(0).setNumberFormat('Rp #,##0');
         updated++;
       } else if (val.indexOf('Rp') < 0 && /\d/.test(val)) {
         // Raw number → format as Rupiah
@@ -195,6 +269,10 @@ function doGet(e) {
   if (page === 'bulk_update_rupiah') {
     var result = bulkUpdateHargaRupiah();
     return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Rupiah');
+  }
+  if (page === 'fix_dp_validation') {
+    var result = fixDpValidation();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix DP Validation');
   }
   if (page === 'pdf') {
     var invNo = e.parameter.inv || '';
@@ -534,9 +612,11 @@ function updateStockField(data) {
     if (String(rows[i][0]).toUpperCase() === data.sn.toUpperCase()) {
       var val = data.value;
       if (data.field === 'hargaBeli' || data.field === 'hargaJual') {
-        val = formatRupiah(parseHarga(val));
+        val = parseHarga(val);
+        sheet.getRange(i + 1, col + 1).setValue(val).setNumberFormat('#,##0');
+      } else {
+        sheet.getRange(i + 1, col + 1).setValue(val);
       }
-      sheet.getRange(i + 1, col + 1).setValue(val);
       return {ok: true, msg: data.field + ' diupdate untuk ' + data.sn};
     }
   }
@@ -618,9 +698,7 @@ function createInvoice(data) {
     
     if (!harga) harga = item.harga;
     
-    // Save invoice row: [invNo, SN, buyer, modal, harga, tanggal, sales, handler, status, margin, sales_fee, handling_fee, dp, sisa, catatan]
-    var dpAmount = Number(data.dpAmount) || 0;
-    var sisaBayar = Math.max(0, harga - dpAmount);
+    // Save invoice row: [invNo, SN, buyer, modal, harga, tanggal, sales, handler, status, margin, sales_fee, handling_fee, metode, rincian, catatan]
     var catatan = data.catatan || '';
     // Filter: buang catatan yang hanya angka (harga yang salah input)
     if (/^\d[\d.,\s]*$/.test(catatan.replace(/rp\s*/gi, '').trim())) catatan = '';
@@ -634,19 +712,36 @@ function createInvoice(data) {
     }
     var buyerHP = data.buyer||'';
     if (data.hp) buyerHP += ' / ' + data.hp;
-    invSheet.appendRow([nextNo, sn, buyerHP, '', harga, today, data.sales||'', data.handler||'', dpAmount > 0 ? 'DP' : 'Lunas', '', '', '', dpAmount, sisaBayar, catatan]);
-    // VLOOKUP modal dari Inventaris_Laptop kolom E (Harga_Beli) berdasarkan SN
+    // Normalize metode bayar: map form values to standard metode names
+    var metodeRaw = String(data.payment || 'CASH').toUpperCase().trim();
+    var METODE_MAP = {'TRANSFER':'Transfer','EDC':'Kartu Kredit','CASH':'Cash','SHOPEEPAYLATER':'ShopeePayLater','KREDIVO':'Kredivo','MARKETPLACE':'Marketplace','DP':'DP'};
+    var metode = METODE_MAP[metodeRaw];
+    if (!metode) {
+      // Handle split payment: "Transfer Rp5,000,000 + Cash Rp3,000,000"
+      var parts = metodeRaw.split('+');
+      var methods = [];
+      for (var mi = 0; mi < parts.length; mi++) {
+        var pm = parts[mi].trim().split(/\s/)[0]; // take first word
+        if (METODE_MAP[pm] && methods.indexOf(METODE_MAP[pm]) < 0) methods.push(METODE_MAP[pm]);
+      }
+      metode = methods.length ? methods.join('/') : 'Cash';
+    }
+    invSheet.appendRow([nextNo, sn, buyerHP, item.modal, harga, today, data.sales||'', data.handler||'', data.isDp ? 'DP' : 'Lunas', '', '', '', metode, data.payment || metode, catatan]);
+    // Set formats and margin formula
     var newRow = invSheet.getLastRow();
     invSheet.getRange(newRow, 5).setNumberFormat('Rp #,##0');
-    invSheet.getRange(newRow, 13).setNumberFormat('Rp #,##0');
-    invSheet.getRange(newRow, 14).setNumberFormat('Rp #,##0');
-    invSheet.getRange(newRow, 4).setFormula('=getModalBySN(B'+newRow+')');
     invSheet.getRange(newRow, 4).setNumberFormat('#,##0');
-    // Margin = Harga (E) - Modal/D (D) — E berformat "Rp X.XXX" jadi perlu di-parse dulu
+    // Margin = Harga_Final (E) - Modal (D)
     invSheet.getRange(newRow, 10).setFormula('=E'+newRow+'-D'+newRow);
     
-    // Update status to Sold
-    stSheet.getRange(rowIndex + 1, 7).setValue('Sold');
+    // Update status to Sold (or DP)
+    var statusCell = stSheet.getRange(rowIndex + 1, 7);
+    if (data.isDp) {
+      statusCell.setDataValidation(null); // Remove validation to allow 'DP'
+      statusCell.setValue('DP');
+    } else {
+      statusCell.setValue('Sold');
+    }
     
     resultItems.push({sn:sn, model:item.model, spec:item.spec, harga:harga, ok:true, msg:'Berhasil'});
     invItems.push({sn:sn, model:item.model, spec:item.spec, lokasi:item.lokasi, harga:harga});
@@ -710,15 +805,11 @@ function createInvoice(data) {
     ]);
 
     // Log trade-in in invoice sheet
-    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', '', Number(ti.hargaBeli)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, '']);
+    invSheet.appendRow([tiInvNo, ti.sn, data.buyer||'', 0, Number(ti.hargaBeli)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Trade-In', 'Trade-In', '']);
     var tiRow = invSheet.getLastRow();
     invSheet.getRange(tiRow, 5).setNumberFormat('Rp #,##0');
-    invSheet.getRange(tiRow, 13).setNumberFormat('Rp #,##0');
-    invSheet.getRange(tiRow, 14).setNumberFormat('Rp #,##0');
-    // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
-    var tiRow = invSheet.getLastRow();
-    invSheet.getRange(tiRow, 4).setFormula('=getModalBySN(B'+tiRow+')');
     invSheet.getRange(tiRow, 4).setNumberFormat('#,##0');
+    invSheet.getRange(tiRow, 10).setFormula('=E'+tiRow+'-D'+tiRow);
 
     invItems.push({sn:ti.sn, model:ti.model, harga:-ti.hargaBeli}); // negative for telegram display
   }
@@ -728,7 +819,7 @@ function createInvoice(data) {
   }
   
   var tgResult = sendTelegramInvoice(nextNo, invItems, data.buyer||'', data);
-  return {ok:true, invoiceNo:nextNo, items:resultItems, tradeIn:data.tradeIn||null, telegramSent:tgResult};
+  return {ok:true, invoiceNo:nextNo, items:resultItems, tradeIn:data.tradeIn||null, telegramSent:tgResult, isDp:!!data.isDp, dpAmount:data.dpAmount||0};
 }
 
 // --- TELEGRAM HELPER ---
@@ -744,11 +835,10 @@ function sendTelegramInvoice(invNo, invItems, buyer, data) {
       totalHarga += Number(invItems[i].harga) || 0;
       itemLines += (i+1) + '. ' + invItems[i].model + ' (SN: ' + invItems[i].sn + ') — Rp ' + formatNumber(invItems[i].harga) + (invItems[i].lokasi ? ' [' + invItems[i].lokasi + ']' : '') + '\n';
     }
-    var dpAmt = Number(data.dpAmount) || 0;
-    var sisaAmt = Math.max(0, totalHarga - dpAmt);
-    var msg = 'INVOICE BARU\n\nNo: ' + invNo + '\nTanggal: ' + Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm') + '\n\n' + itemLines + '\nTotal: Rp ' + formatNumber(totalHarga);
-    if (dpAmt > 0) {
-      msg += '\nDP: Rp ' + formatNumber(dpAmt) + '\nSisa Bayar: Rp ' + formatNumber(sisaAmt);
+    var msg = 'INVOICE BARU' + (data.isDp ? ' (DP)' : '') + '\n\nNo: ' + invNo + '\nTanggal: ' + Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm') + '\n\n' + itemLines + '\nTotal: Rp ' + formatNumber(totalHarga);
+    if(data.isDp && data.dpAmount) {
+      msg += '\n💰 DP: Rp ' + formatNumber(data.dpAmount);
+      msg += '\nSisa Pelunasan: Rp ' + formatNumber(Math.max(0, totalHarga - data.dpAmount));
     }
     msg += '\nBuyer: ' + buyer + '\nPembayaran: ' + (data.payment || 'CASH') + '\nSales: ' + (data.sales || '-') + '\nHandler: ' + (data.handler || '-');
     if (data.catatan) msg += '\nCatatan: ' + data.catatan;
@@ -791,7 +881,7 @@ function getSalesHistory() {
     var colE = String(r[4] || '');
     var isOldFormat = !r[8] && (colE.indexOf('/') > -1 || colE.indexOf('-') > 0) && colE.match(/\d{4}/);
     
-    var tanggal, harga, sales, handler, status, dpAmount, sisaBayar, catatan;
+    var tanggal, harga, sales, handler, status, dpAmount, sisaBayar, catatan, metode, rincian;
     if (isOldFormat) {
       // Old format: [invNo, SN, buyer, harga(lost→from sisa), tanggal(E), sales(F), handler(G), status(H), ...dp(L), sisa(M), catatan(N)]
       tanggal = parseRawDate(r[4]);
@@ -803,16 +893,46 @@ function getSalesHistory() {
       dpAmount = parseHarga(r[11] || '0'); // L=dp
       sisaBayar = parseHarga(r[12] || '0'); // M=sisa
       catatan = String(r[13] || ''); // N=catatan
+      metode = 'Cash';
+      rincian = '';
     } else {
-      // New format: [invNo, SN, buyer, modal(D), harga(E), tanggal(F), sales(G), handler(H), status(I), ...dp(M), sisa(N), catatan(O)]
+      // New format: [invNo, SN, buyer, modal(D), harga(E), tanggal(F), sales(G), handler(H), status(I), ...metode(M), dp(N), sisa(O), catatan(P)]
       tanggal = parseRawDate(r[5]);
       harga = parseHarga(r[4]);
       sales = String(r[6] || '');
       handler = String(r[7] || '');
       status = String(r[8] || '');
-      dpAmount = parseHarga(r[12] || '0');
-      sisaBayar = parseHarga(r[13] || '0');
-      catatan = String(r[14] || '');
+      // Detect if col M (r[12]) is metode text or old dpAmount number
+      var colM = String(r[12] || '').trim();
+      var VALID_METODE = ['Transfer','Cash','Kartu Kredit','Kredivo','ShopeePayLater','Trade-In','Marketplace','EDC','DP'];
+      var colIsMetode = colM && isNaN(parseHarga(colM)) && (VALID_METODE.indexOf(colM) >= 0 || colM.indexOf('/') > 0);
+      if (colIsMetode) {
+        // Detect sub-layout: check if N (r[13]) is a number (old dp) or text (new rincian)
+        var colN = r[13];
+        var colNisNumber = (typeof colN === 'number') || (typeof colN === 'string' && !isNaN(parseHarga(colN)) && colN !== '' && colN.indexOf('/') < 0);
+        if (colNisNumber) {
+          // Aug 2026 layout: M=metode, N=dp, O=sisa, P=catatan
+          metode = colM;
+          dpAmount = parseHarga(colN || '0');
+          sisaBayar = parseHarga(r[14] || '0');
+          catatan = String(r[15] || '');
+          rincian = '';
+        } else {
+          // Newest layout: M=metode, N=rincian, O=catatan
+          metode = colM;
+          rincian = String(colN || '');
+          catatan = String(r[14] || '');
+          dpAmount = 0;
+          sisaBayar = 0;
+        }
+      } else {
+        // Old layout (before metode fix): M=dp, N=sisa, O=catatan
+        metode = 'Cash';
+        dpAmount = parseHarga(r[12] || '0');
+        sisaBayar = parseHarga(r[13] || '0');
+        catatan = String(r[14] || '');
+        rincian = '';
+      }
     }
     
     // Parse trade-in items from catatan
@@ -847,8 +967,10 @@ function getSalesHistory() {
       handler: handler,
       sn: String(r[1] || ''),  // hidden, for download
       status: status,
+      metode: metode || 'Cash',
       dpAmount: dpAmount,
       sisaBayar: sisaBayar,
+      rincian: rincian || '',
       catatan: (catatan.indexOf('TUKAR:') === 0) ? '' : catatan,
       isTradeIn: isTradeIn,
       tukarItems: tukarItems,
@@ -862,31 +984,46 @@ function getSalesHistory() {
 function generateSalesReportCSV() {
   var data = getRawSheetData('Log_Penjualan_Invoice');
   
-  // Build SN→Lokasi from inventory
-  var invData = getRawSheetData('Inventaris_Laptop');
+  // Build SN→Lokasi from BOTH Inventaris_Laptop AND Log_stok_sold
   var snLokasi = {};
-  for (var j = 1; j < invData.length; j++) {
-    var sn = String(invData[j][0] || '').toUpperCase().trim();
-    if (sn) snLokasi[sn] = String(invData[j][11] || '').toUpperCase().trim();
-  }
+  ['Inventaris_Laptop', 'Log_stok_sold'].forEach(function(sheetName) {
+    var sheetData = getRawSheetData(sheetName);
+    for (var j = 1; j < sheetData.length; j++) {
+      var sn = String(sheetData[j][0] || '').toUpperCase().trim();
+      if (sn && !snLokasi[sn]) snLokasi[sn] = String(sheetData[j][11] || '').toUpperCase().trim();
+    }
+  });
   
   // Current month range
   var now = new Date();
-  var bulan = now.getMonth();
-  var tahun = now.getFullYear();
   var currentMonth = now.getMonth(); // 0-indexed
   var currentYear = now.getFullYear();
   var labelBulan = Utilities.formatDate(now, 'Asia/Jakarta', 'MMMM yyyy');
   
   var tokoStats = {};   // lokasi → {count, total}
-  var salesStats = {};  // sales → {count, total, items:[{model}]}
+  var salesStats = {};  // sales → {count, total}
   
   for (var i = 1; i < data.length; i++) {
     var r = data[i];
     if (!r[0]) continue;
     
-    // Parse date - all strings now
-    var tanggalRaw = String(r[5] || '');
+    // Detect old format: column I (r[8]) empty AND column E (r[4]) looks like a date
+    var colE = String(r[4] || '');
+    var isOldFormat = !r[8] && (colE.indexOf('/') > -1 || colE.indexOf('-') > 0) && colE.match(/\d{4}/);
+    
+    var tanggalRaw, harga, rawS;
+    if (isOldFormat) {
+      tanggalRaw = String(r[4] || '');  // E = tanggal (old format)
+      harga = parseHarga(r[12] || '0'); // M = sisa (=harga)
+      if (!harga) harga = parseHarga(r[3]); // fallback
+      rawS = String(r[5] || '').trim(); // F = sales (old format)
+    } else {
+      tanggalRaw = String(r[5] || '');  // F = tanggal (new format)
+      harga = parseHarga(r[4]);         // E = harga (new format)
+      rawS = String(r[6] || '').trim(); // G = sales (new format)
+    }
+    
+    // Parse date
     var isCurrentMonth = false;
     // Try dd/MM/yyyy format
     var parts = tanggalRaw.split(' ')[0].split('/');
@@ -919,11 +1056,9 @@ function generateSalesReportCSV() {
     
     var sn = String(r[1] || '').toUpperCase().trim();
     var lokasi = snLokasi[sn] || '-';
-    var harga = parseHarga(r[4]);
-    // Prefer Staff_Handle (col 7) if it's a real staff name, fallback to Sales (col 6)
+    // Filter sales name
     var _kw = ['tiktok'];
     function _isSN(v) { var l=v.toLowerCase(); if(l === 'tiktok' || l === 'sales') return false; return l !== '' && l !== '-'; }
-    var rawS = String(r[6] || '').trim();
     var sales = (rawS && rawS !== '-' && _isSN(rawS)) ? rawS : '-';
     
     if (!tokoStats[lokasi]) tokoStats[lokasi] = {count:0, total:0};
@@ -1816,7 +1951,7 @@ function updateInvoiceField(data) {
   var rows = invSheet.getDataRange().getValues();
   var fieldMap = {
     'buyer': 2, 'modal': 3, 'harga': 4, 'tanggal': 5, 'sales': 6, 'handler': 7,
-    'status': 8, 'catatan': 14, 'dp': 12, 'sisa': 13
+    'status': 8, 'metode': 12, 'rincian': 13, 'catatan': 14
   };
   var col = fieldMap[data.field];
   if (col === undefined) return {ok: false, msg: 'Field tidak valid: ' + data.field};
@@ -1824,9 +1959,9 @@ function updateInvoiceField(data) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
       var val = data.value;
-      if (data.field === 'harga' || data.field === 'dp' || data.field === 'sisa') {
-        val = formatRupiah(parseHarga(val));
-        invSheet.getRange(i + 1, col + 1).setValue(val);
+      if (data.field === 'harga') {
+        val = parseHarga(val);
+        invSheet.getRange(i + 1, col + 1).setValue(val).setNumberFormat('#,##0');
       } else if (data.field === 'modal') {
         var cleanNum = parseHarga(val);
         invSheet.getRange(i + 1, col + 1).setValue(cleanNum).setNumberFormat('#,##0');
@@ -1846,7 +1981,7 @@ function updateTradeInField(data) {
   var rows = invSheet.getDataRange().getValues();
   var fieldMap = {
     'buyer': 2, 'modal': 3, 'harga': 4, 'tanggal': 5, 'sales': 6, 'handler': 7,
-    'status': 8, 'catatan': 14, 'dp': 12, 'sisa': 13
+    'status': 8, 'metode': 12, 'rincian': 13, 'catatan': 14
   };
   var col = fieldMap[data.field];
   if (col === undefined) return {ok: false, msg: 'Field tidak valid'};
@@ -1856,9 +1991,9 @@ function updateTradeInField(data) {
     var sn = String(rows[i][1] || '').toUpperCase();
     if (invNo === data.invNo && sn === data.sn.toUpperCase()) {
       var val = data.value;
-      if (data.field === 'harga' || data.field === 'dp' || data.field === 'sisa') {
-        val = formatRupiah(parseHarga(val));
-        invSheet.getRange(i + 1, col + 1).setValue(val);
+      if (data.field === 'harga') {
+        val = parseHarga(val);
+        invSheet.getRange(i + 1, col + 1).setValue(val).setNumberFormat('#,##0');
       } else if (data.field === 'modal') {
         var cleanNum = parseHarga(val);
         invSheet.getRange(i + 1, col + 1).setValue(cleanNum).setNumberFormat('#,##0');
@@ -1876,17 +2011,30 @@ function markInvoiceLunas(data) {
   var ss = SpreadsheetApp.openById(SS_ID);
   var invSheet = ss.getSheetByName('Log_Penjualan_Invoice');
   var rows = invSheet.getDataRange().getValues();
-  // Layout: [invNo(0), SN(1), buyer(2), modal(3), harga(4), tanggal(5), sales(6), handler(7), status(8), margin(9), sales_fee(10), handling_fee(11), dp(12), sisa(13), catatan(14)]
+  // Layout: [invNo(0), SN(1), buyer(2), modal(3), harga(4), tanggal(5), sales(6), handler(7), status(8), margin(9), sales_fee(10), handling_fee(11), metode(12), rincian(13), catatan(14)]
   
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === data.invNo && String(rows[i][1]).toUpperCase() === data.sn.toUpperCase()) {
       var status = String(rows[i][8] || '').toUpperCase();
       if (status !== 'DP') return {ok: false, msg: 'Invoice ini bukan status DP'};
-      var harga = parseHarga(rows[i][4]);
-      // Update: status=Lunas, dp=harga(full), sisa=0
-      invSheet.getRange(i + 1, 9).setValue('Lunas');   // col 9 = Status_Pembayaran (I)
-      invSheet.getRange(i + 1, 12).setValue(harga).setNumberFormat('Rp #,##0');     // col 12 = dp (full amount now paid)
-      invSheet.getRange(i + 1, 13).setValue(0).setNumberFormat('Rp #,##0');          // col 13 = sisa
+      
+      // Update status to Lunas
+      invSheet.getRange(i + 1, 9).setValue('Lunas');
+      // Update rincian to show Lunas
+      var rincianLama = String(rows[i][13] || '');
+      invSheet.getRange(i + 1, 14).setValue(rincianLama + ' → LUNAS');
+      
+      // Update inventory status from DP to Sold
+      var sn = String(rows[i][1] || '').toUpperCase();
+      var stSheet = ss.getSheetByName('Inventaris_Laptop');
+      var stRows = stSheet.getDataRange().getValues();
+      for (var j = 1; j < stRows.length; j++) {
+        if (String(stRows[j][0]).toUpperCase() === sn && String(stRows[j][6]).toUpperCase() === 'DP') {
+          stSheet.getRange(j + 1, 7).setValue('Sold');
+          break;
+        }
+      }
+      
       return {ok: true, msg: 'Invoice ditandai LUNAS'};
     }
   }
@@ -1979,6 +2127,17 @@ function getInvoiceData(invoiceNo, snParam) {
         }
       }
       
+      var statusStr = String(invData[i][8] || '');
+      var isDpStatus = statusStr.toUpperCase() === 'DP';
+      var dpAmountVal = 0;
+      var sisaBayarVal = 0;
+      if (isDpStatus) {
+        // Parse DP amount from rincian column (N): "DP Rp2,000,000"
+        var rincianStr = String(invData[i][13] || '');
+        var dpMatch = rincianStr.match(/DP\s+Rp?([\d.,]+)/i);
+        if (dpMatch) dpAmountVal = parseHarga(dpMatch[1]);
+        sisaBayarVal = Math.max(0, parseHarga(invData[i][4]) - dpAmountVal);
+      }
       return {
         invoiceNo: String(invData[i][0] || ''),
         date: parseRawDate(invData[i][5]),
@@ -1988,17 +2147,18 @@ function getInvoiceData(invoiceNo, snParam) {
         buyer: String(invData[i][2] || ''),
         modal: parseHarga(invData[i][3]),
         harga: parseHarga(invData[i][4]),
-        payment: String(invData[i][8] || 'CASH'),
+        payment: statusStr || 'CASH',
         sales: String(invData[i][6] || ''),
         handler: String(invData[i][7] || ''),
         location: loc,
-        dpAmount: parseHarga(invData[i][12] || '0'),
-        sisaBayar: parseHarga(invData[i][13] || '0'),
+        rincian: String(invData[i][13] || ''),
         catatan: (catatanRaw.indexOf('TUKAR:') === 0) ? '' : catatanRaw,
         isTradeIn: isTradeIn,
         tukarItems: tukarItems,
         totalTukar: totalTukar,
-        totalBayar: totalBayar
+        totalBayar: totalBayar,
+        dpAmount: dpAmountVal,
+        sisaBayar: sisaBayarVal
       };
     }
   }
@@ -2285,15 +2445,11 @@ function createTradeIn(data) {
   // Log each BELI item as separate row: [invNo, SN, buyer, modal=VLOOKUP, harga, tanggal, sales, handler, status, ...]
   for (var b = 0; b < data.beliItems.length; b++) {
     var bi = data.beliItems[b];
-    invSheet.appendRow([invNo, bi.sn, data.buyer||'', '', Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 0, 0, tukarNote]);
+    invSheet.appendRow([invNo, bi.sn, data.buyer||'', 0, Number(bi.harga)||0, today, data.sales||'', data.handler||'', 'Lunas (Trade-In)', '', '', '', 'Trade-In', 'Trade-In', tukarNote]);
     var bRow = invSheet.getLastRow();
     invSheet.getRange(bRow, 5).setNumberFormat('Rp #,##0');
-    invSheet.getRange(bRow, 13).setNumberFormat('Rp #,##0');
-    invSheet.getRange(bRow, 14).setNumberFormat('Rp #,##0');
-    // VLOOKUP modal dari Inventaris_Laptop kolom E berdasarkan SN
-    var bRow = invSheet.getLastRow();
-    invSheet.getRange(bRow, 4).setFormula('=getModalBySN(B'+bRow+')');
     invSheet.getRange(bRow, 4).setNumberFormat('#,##0');
+    invSheet.getRange(bRow, 10).setFormula('=E'+bRow+'-D'+bRow);
   }
 
   return {ok: true, invoiceNo: invNo, totalDibayar: dibayar, beliNotFound: beliNotFound, tukarAdded: tukarAdded, tukarSkipped: tukarSkipped || []};
@@ -2374,7 +2530,7 @@ function getDashboardStats() {
   var ss = SpreadsheetApp.openById(SS_ID);
   var data = ss.getSheetByName('Inventaris_Laptop').getDataRange().getValues();
   var total=0, available=0, sold=0, returned=0, problems=0;
-  var servis=0;
+  var servis=0, dpCount=0;
   var locStats = {};
   
   for (var i = 1; i < data.length; i++) {
@@ -2383,17 +2539,18 @@ function getDashboardStats() {
     if (!st) continue;
     total++;
     
-    if (!locStats[loc]) locStats[loc] = {available:0, sold:0, servis:0, problem:0, returned:0};
+    if (!locStats[loc]) locStats[loc] = {available:0, sold:0, servis:0, problem:0, returned:0, dp:0};
     
     if (st==='Available') { available++; locStats[loc].available++; }
     else if (st==='Sold') { sold++; locStats[loc].sold++; }
+    else if (st==='DP') { dpCount++; locStats[loc].dp++; }
     else if (st==='Returned') { returned++; locStats[loc].returned++; }
     else if (st==='problem') { problems++; locStats[loc].problem++; }
     else if (st==='Servis') { servis++; locStats[loc].servis++; }
   }
   
   return {
-    total:total, tersedia:available, sold:sold, returned:returned, problems:problems, servis:servis,
+    total:total, tersedia:available, sold:sold, returned:returned, problems:problems, servis:servis, dpCount:dpCount,
     locStats: locStats
   };
 }
