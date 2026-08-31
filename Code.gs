@@ -982,6 +982,7 @@ function getSalesHistory() {
 
 // --- SALES REPORT CSV ---
 function generateSalesReportCSV() {
+  try {
   var data = getRawSheetData('Log_Penjualan_Invoice');
   
   // Build SN→Lokasi from BOTH Inventaris_Laptop AND Log_stok_sold
@@ -1101,6 +1102,9 @@ function generateSalesReportCSV() {
   });
   
   return csv;
+  } catch(e) {
+    return 'ERROR: ' + e.toString();
+  }
 }
 
 // ============================================
