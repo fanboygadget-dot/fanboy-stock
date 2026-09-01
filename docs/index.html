@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Fanboy Stock Viewer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#3b82f6;--dark:#0f172a;--gray:#64748b;--border:#e2e8f0;--bg:#f8fafc;--card:#fff}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh}
+.header{background:var(--dark);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:18px;font-weight:700;letter-spacing:1px}
+.header .badge{background:rgba(34,197,94,.2);color:#22c55e;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.container{max-width:900px;margin:0 auto;padding:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:all .2s}
+.stat-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.stat-card.active{border-color:var(--primary);background:#eff6ff}
+.stat-card .loc{font-size:13px;font-weight:700;margin-bottom:4px}
+.stat-card .count{font-size:28px;font-weight:800;color:var(--primary)}
+.stat-card .lbl{font-size:11px;color:var(--gray);margin-top:2px}
+.stat-all{background:var(--dark);color:#fff}
+.stat-all .loc{color:#fff}
+.stat-all .count{color:#60a5fa}
+.stat-all .lbl{color:rgba(255,255,255,.6)}
+.stat-all.active{background:#1e293b}
+.search-bar{display:flex;gap:10px;margin-bottom:16px}
+.search-input{flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;outline:none;background:var(--card)}
+.search-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.refresh-btn{padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card);cursor:pointer;font-size:16px;color:var(--gray)}
+.refresh-btn:hover{border-color:var(--primary);color:var(--primary)}
+.refresh-btn.spin i{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-info{font-size:12px;color:var(--gray);margin-bottom:12px}
+.stock-list{display:flex;flex-direction:column;gap:10px}
+.stock-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .2s}
+.stock-item:hover{border-color:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.stock-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.stock-model{font-size:15px;font-weight:600}
+.stock-harga{font-size:15px;font-weight:700;color:var(--primary);white-space:nowrap}
+.stock-spec{font-size:13px;color:var(--gray);margin-bottom:8px;line-height:1.4}
+.stock-meta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.stock-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.tag-loc{background:#dbeafe;color:#2563eb}
+.tag-kondisi{background:#f1f5f9;color:#64748b}
+.tag-sn{background:#fef3c7;color:#92400e;font-family:monospace;font-size:11px}
+.empty{text-align:center;padding:60px 20px;color:var(--gray)}
+.empty i{font-size:48px;margin-bottom:16px;color:var(--border)}
+.loading{text-align:center;padding:60px 20px}
+.loading .spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+.loading p{color:var(--gray);font-size:14px}
+.footer{text-align:center;padding:20px;font-size:11px;color:var(--light-gray);border-top:1px solid var(--border);margin-top:30px}
+.error-box{text-align:center;padding:40px;background:#fee2e2;border-radius:12px;color:#dc2626;margin-bottom:16px}
+.error-box i{font-size:32px;margin-bottom:8px}
+@media(max-width:480px){.container{padding:12px}.stats{grid-template-columns:repeat(2,1fr)}.stat-card .count{font-size:22px}.stock-top{flex-direction:column;gap:4px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><i class="fas fa-laptop"></i> FANBOY STOCK</h1>
+  <span class="badge"><i class="fas fa-eye"></i> Viewer</span>
+</div>
+<div class="container">
+  <div class="stats" id="statsContainer">
+    <div class="stat-card stat-all active" onclick="filterLoc('')" id="stat-all">
+      <div class="loc">SEMUA</div>
+      <div class="count" id="countAll">-</div>
+      <div class="lbl">unit tersedia</div>
+    </div>
+  </div>
+  <div class="search-bar">
+    <input type="text" class="search-input" id="searchBox" placeholder="Cari model, spesifikasi, SN..." oninput="renderList()">
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData()"><i class="fas fa-sync-alt"></i></button>
+  </div>
+  <div class="result-info" id="resultInfo"></div>
+  <div id="stockContent"><div class="loading"><div class="spinner"></div><p>Memuat data stok...</p></div></div>
+</div>
+<div class="footer"><i class="fas fa-laptop"></i> Fanboy Stock Viewer &mdash; Data real-time dari Google Sheets</div>
+
+<script>
+// Google Sheets CSV URL (Inventaris_Laptop sheet)
+var CSV_URL = 'https://docs.google.com/spreadsheets/d/1BB9PaP_iLoM9A1uYWXAZtnDYKqgfmVNJwi4Q5XraO-0/gviz/tq?tqx=out:csv&sheet=Inventaris_Laptop';
+
+// Column mapping from CSV header:
+// 0=ID_Laptop, 1=Merk_Model, 2=Spesifikasi, 3=Kondisi, 4=Harga_Beli,
+// 5=Harga_Jual, 6=Status, 7=Tanggal_Masuk, 8=Suplier, 9=Lokasi_Saat_Ini
+var COL_SN = 0, COL_MODEL = 1, COL_SPEC = 2, COL_KONDISI = 3;
+var COL_HARGA = 5, COL_STATUS = 6, COL_LOKASI = 9;
+
+var allItems = [];
+var counts = {};
+var activeLoc = '';
+
+function loadData() {
+  var btn = document.getElementById('refreshBtn');
+  btn.classList.add('spin');
+
+  fetch(CSV_URL + '&t=' + Date.now())
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(csv) {
+      var rows = parseCSV(csv);
+      allItems = [];
+      counts = {};
+      for (var i = 1; i < rows.length; i++) {
+        var r = rows[i];
+        var status = (r[COL_STATUS] || '').trim();
+        if (status !== 'Available') continue;
+        var loc = (r[COL_LOKASI] || '').toUpperCase().trim();
+        if (!loc) continue;
+        allItems.push({
+          sn: (r[COL_SN] || '').trim(),
+          model: (r[COL_MODEL] || '').trim(),
+          spec: (r[COL_SPEC] || '').trim(),
+          kondisi: (r[COL_KONDISI] || '').trim(),
+          harga: (r[COL_HARGA] || '').trim(),
+          lokasi: loc
+        });
+        counts[loc] = (counts[loc] || 0) + 1;
+      }
+      renderStats();
+      renderList();
+      btn.classList.remove('spin');
+    })
+    .catch(function(err) {
+      document.getElementById('stockContent').innerHTML =
+        '<div class="error-box"><i class="fas fa-exclamation-triangle"></i><p>Gagal memuat data: ' + esc(err.message) + '</p></div>';
+      btn.classList.remove('spin');
+    });
+}
+
+function parseCSV(text) {
+  var rows = [], row = [], field = '', inQ = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else { inQ = false; } }
+      else { field += c; }
+    } else {
+      if (c === '"') { inQ = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || (c === '\r' && text[i+1] === '\n')) {
+        if (c === '\r') i++;
+        row.push(field); field = '';
+        if (row.length > 1) rows.push(row);
+        row = [];
+      } else { field += c; }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function renderStats() {
+  var container = document.getElementById('statsContainer');
+  var total = 0;
+  var locs = Object.keys(counts).sort();
+  for (var k in counts) total += counts[k];
+  document.getElementById('countAll').textContent = total;
+  var old = container.querySelectorAll('.stat-loc');
+  for (var i = 0; i < old.length; i++) old[i].remove();
+  locs.forEach(function(loc) {
+    var div = document.createElement('div');
+    div.className = 'stat-card stat-loc' + (activeLoc === loc ? ' active' : '');
+    div.onclick = function() { filterLoc(loc); };
+    div.innerHTML = '<div class="loc">' + esc(loc) + '</div><div class="count">' + (counts[loc]||0) + '</div><div class="lbl">unit</div>';
+    container.appendChild(div);
+  });
+}
+
+function filterLoc(loc) {
+  activeLoc = loc;
+  document.getElementById('stat-all').className = 'stat-card stat-all' + (loc===''?' active':'');
+  var cards = document.querySelectorAll('.stat-loc');
+  for (var i = 0; i < cards.length; i++) {
+    var cl = cards[i].querySelector('.loc').textContent;
+    cards[i].className = 'stat-card stat-loc' + (cl===loc?' active':'');
+  }
+  renderList();
+}
+
+function renderList() {
+  var q = document.getElementById('searchBox').value.toUpperCase().trim();
+  var filtered = allItems.filter(function(item) {
+    if (activeLoc && item.lokasi !== activeLoc) return false;
+    if (q) {
+      var h = (item.model+' '+item.spec+' '+item.sn+' '+item.kondisi).toUpperCase();
+      return h.indexOf(q) !== -1;
+    }
+    return true;
+  });
+  document.getElementById('resultInfo').innerHTML = '<i class="fas fa-box"></i> Menampilkan <strong>'+filtered.length+'</strong> dari '+allItems.length+' unit tersedia';
+  if (!filtered.length) {
+    document.getElementById('stockContent').innerHTML = '<div class="empty"><i class="fas fa-box-open"></i><p>Tidak ada stok ditemukan</p></div>';
+    return;
+  }
+  var html = '<div class="stock-list">';
+  filtered.forEach(function(item) {
+    html += '<div class="stock-item">';
+    html += '<div class="stock-top"><div class="stock-model"><i class="fas fa-laptop" style="color:var(--primary);margin-right:6px"></i>'+esc(item.model)+'</div>';
+    html += '<div class="stock-harga">'+esc(item.harga)+'</div></div>';
+    if (item.spec) html += '<div class="stock-spec">'+esc(item.spec)+'</div>';
+    html += '<div class="stock-meta">';
+    html += '<span class="stock-tag tag-loc"><i class="fas fa-map-marker-alt"></i> '+esc(item.lokasi)+'</span>';
+    if (item.kondisi) html += '<span class="stock-tag tag-kondisi"><i class="fas fa-star"></i> '+esc(item.kondisi)+'</span>';
+    html += '<span class="stock-tag tag-sn">'+esc(item.sn)+'</span>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  document.getElementById('stockContent').innerHTML = html;
+}
+
+function esc(s) { if(!s)return''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+loadData();
+</script>
+</body>
+</html>
