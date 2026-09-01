@@ -852,7 +852,7 @@
         <div class="page-title"><i class="fas fa-file-excel"></i> Laporan Penjualan</div>
         <div class="card">
           <div class="card-header"><i class="fas fa-file-excel"></i> Download Laporan Penjualan</div>
-          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Data Penjualan</b> dalam format Spreadsheet Google</p>
+          <p style="font-size:12px;color:var(--gray);margin-bottom:12px">Download laporan dari sheet <b>Log_Penjualan_Invoice</b> dalam format Spreadsheet Google</p>
           <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-group" style="margin-bottom:0">
               <label style="font-size:12px">Tanggal Mulai</label>
@@ -3070,82 +3070,20 @@
     }
   </script>
 
-  <!-- PWA: Service Worker + Install Prompt -->
+  <!-- PWA: DISABLED service worker (corrupt cache di Android). Unregister all SW. -->
   <script>
-    // Register service worker via Blob URL (Apps Script can't serve sw.js separately)
+    // Unregister any existing service worker (clears corrupt v1 cache on Android)
     if ('serviceWorker' in navigator) {
-      var swCode = `
-        var CACHE_NAME = 'fanboy-stock-v1';
-        var URLS_TO_CACHE = [];
-
-        self.addEventListener('install', function(e) {
-          self.skipWaiting();
-        });
-
-        self.addEventListener('activate', function(e) {
-          e.waitUntil(clients.claim());
-        });
-
-        self.addEventListener('fetch', function(e) {
-          if (e.request.url.indexOf('google.com/recaptcha') !== -1) return;
-          if (e.request.url.indexOf('googleapis.com/js') !== -1) return;
-          e.respondWith(
-            fetch(e.request).then(function(response) {
-              if (response && response.status === 200 && response.type === 'basic') {
-                var clone = response.clone();
-                caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
-              }
-              return response;
-            }).catch(function() {
-              return caches.match(e.request);
-            })
-          );
-        });
-      `;
-      var blob = new Blob([swCode], {type: 'application/javascript'});
-      navigator.serviceWorker.register(URL.createObjectURL(blob), {scope: '/'}).catch(function(){});
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(reg) { reg.unregister(); });
+      }).catch(function(){});
     }
-
-    // Install prompt
-    var deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault();
-      deferredPrompt = e;
-      showInstallBanner();
-    });
-
-    function showInstallBanner() {
-      if (document.getElementById('pwaInstallBanner')) return;
-      var banner = document.createElement('div');
-      banner.id = 'pwaInstallBanner';
-      banner.innerHTML = '<div style="position:fixed;bottom:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Inter,sans-serif;box-shadow:0 -4px 20px rgba(0,0,0,0.3)">' +
-        '<div style="display:flex;align-items:center;gap:10px"><i class="fas fa-download" style="font-size:20px"></i><div><div style="font-weight:600;font-size:14px">Install Fanboy Stock</div><div style="font-size:12px;opacity:0.85">Akses lebih cepat dari home screen</div></div></div>' +
-        '<div style="display:flex;gap:8px"><button onclick="installPWA()" style="background:#fff;color:#2563eb;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Install</button>' +
-        '<button onclick="dismissInstall()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer"><i class="fas fa-times"></i></button></div></div>';
-      document.body.appendChild(banner);
+    // Also clear any leftover caches from previous versions
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        keys.forEach(function(k) { caches.delete(k); });
+      }).catch(function(){});
     }
-
-    function installPWA() {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(choice) {
-        deferredPrompt = null;
-        var b = document.getElementById('pwaInstallBanner');
-        if (b) b.remove();
-      });
-    }
-
-    function dismissInstall() {
-      var b = document.getElementById('pwaInstallBanner');
-      if (b) b.remove();
-      sessionStorage.setItem('pwa_dismissed', '1');
-    }
-
-    // Don't show if already dismissed or already installed
-    window.addEventListener('load', function() {
-      if (sessionStorage.getItem('pwa_dismissed')) return;
-      if (window.matchMedia('(display-mode: standalone)').matches) return;
-    });
   </script>
 </body>
 </html>

@@ -248,58 +248,6 @@ function bulkUpdateHargaRupiah() {
 }
 
 // --- WEB APP ---
-function doGet(e) {
-  var page = (e && e.parameter && e.parameter.page) || 'main';
-  // Debug: penjualan dates
-  if (page === 'debug_penjualan') {
-    var result = debugPenjualanDates();
-    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result, null, 2) + '</pre>').setTitle('Debug Penjualan');
-  }
-  // Admin action: bulk update modal VLOOKUP
-  if (page === 'bulk_update_modal') {
-    var result = bulkUpdateModalVlookup();
-    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Modal');
-  }
-  // Admin action: fix margin formulas + column D format
-  if (page === 'fix_margin') {
-    var result = bulkFixMarginFormulas();
-    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix Margin');
-  }
-  // Admin action: bulk update harga to Rupiah format
-  if (page === 'bulk_update_rupiah') {
-    var result = bulkUpdateHargaRupiah();
-    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Rupiah');
-  }
-  if (page === 'fix_dp_validation') {
-    var result = fixDpValidation();
-    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix DP Validation');
-  }
-  if (page === 'pdf') {
-    var invNo = e.parameter.inv || '';
-    var snParam = e.parameter.sn || '';
-    var data = getInvoiceData(invNo, snParam);
-    if (!data) return HtmlService.createHtmlOutput('Invoice tidak ditemukan').setTitle('Error');
-    var tpl = HtmlService.createTemplateFromFile('InvoicePDF');
-    tpl.data = data;
-    return tpl.evaluate().setTitle('Invoice ' + invNo)
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  }
-  if (page === 'servis_pdf') {
-    var sn = e.parameter.sn || '';
-    var data = getServisInvoiceData(sn);
-    if (!data) return HtmlService.createHtmlOutput('Invoice servis tidak ditemukan').setTitle('Error');
-    var tpl = HtmlService.createTemplateFromFile('ServisInvoicePDF');
-    tpl.data = data;
-    return tpl.evaluate().setTitle('Invoice Servis ' + sn)
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  }
-  return HtmlService.createHtmlOutputFromFile('Page')
-    .setTitle('Fanboy Stock Manager')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
 
 // --- DASHBOARD COUNTS ---
 function getCounts() {
@@ -1147,12 +1095,12 @@ function parsePenjualanDate(s) {
   return isNaN(d2.getTime()) ? null : d2;
 }
 
-// Debug: return sample rows from Data Penjualan to inspect date format
+// Debug: return sample rows from Log_Penjualan_Invoice to inspect date format
 function debugPenjualanDates() {
   try {
-    var ss = SpreadsheetApp.openById(PENJUALAN_SS_ID);
-    var sheet = ss.getSheetByName('Data Penjualan');
-    if (!sheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
+    if (!sheet) return {ok: false, msg: 'Sheet Log_Penjualan_Invoice tidak ditemukan'};
 
     var allData = sheet.getDataRange().getDisplayValues();
     if (allData.length < 2) return {ok: false, msg: 'Sheet kosong'};
@@ -1193,69 +1141,88 @@ function debugPenjualanDates() {
   }
 }
 
-// Get filtered penjualan data (used by both download & preview)
+// Get filtered penjualan data from Log_Penjualan_Invoice (used by both download & preview)
 function getPenjualanFiltered(startDate, endDate) {
   try {
-    var ss = SpreadsheetApp.openById(PENJUALAN_SS_ID);
-    var sheet = ss.getSheetByName('Data Penjualan');
-    if (!sheet) return {ok: false, msg: 'Sheet "Data Penjualan" tidak ditemukan'};
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var sheet = ss.getSheetByName('Log_Penjualan_Invoice');
+    if (!sheet) return {ok: false, msg: 'Sheet "Log_Penjualan_Invoice" tidak ditemukan'};
 
-    var allData = sheet.getDataRange().getDisplayValues();
-    if (allData.length < 2) return {ok: true, data: [], count: 0};
+    var allData = sheet.getRange(1, 1, sheet.getLastRow(), 15).getDisplayValues(); // A-O (15 cols)
+    if (allData.length < 2) return {ok: true, data: [], count: 0, headers: []};
 
-    // Find header row (contains date column)
-    var headerRow = -1;
-    var tglCol = -1;
-    var dateKeywords = ['tanggal', 'tgl', 'date', 'waktu'];
-    for (var i = 0; i < Math.min(10, allData.length); i++) {
-      for (var j = 0; j < allData[i].length; j++) {
-        var hdr = String(allData[i][j] || '').toLowerCase().trim();
-        for (var k = 0; k < dateKeywords.length; k++) {
-          if (hdr.indexOf(dateKeywords[k]) >= 0) {
-            headerRow = i;
-            tglCol = j;
-            break;
-          }
-        }
-        if (headerRow >= 0) break;
+    // Build SN→Lokasi lookup from Inventaris_Laptop + Log_stok_sold
+    var snLokasi = {};
+    ['Inventaris_Laptop', 'Log_stok_sold'].forEach(function(sheetName) {
+      var s = ss.getSheetByName(sheetName);
+      if (!s) return;
+      var d = s.getRange(1, 1, s.getLastRow(), 12).getValues(); // need col L (index 11) = Staff_input, col J (index 9) = Lokasi
+      for (var j = 1; j < d.length; j++) {
+        var sn = String(d[j][0] || '').toUpperCase().trim();
+        if (sn && !snLokasi[sn]) snLokasi[sn] = String(d[j][9] || '').toUpperCase().trim(); // Col J = Lokasi_Saat_Ini
       }
-      if (headerRow >= 0) break;
-    }
-    if (headerRow < 0) return {ok: false, msg: 'Kolom tanggal tidak ditemukan. Header: ' + JSON.stringify(allData[0])};
+    });
+
+    // Build SN→Model lookup from Inventaris_Laptop + Log_stok_sold
+    var snModel = {};
+    ['Inventaris_Laptop', 'Log_stok_sold'].forEach(function(sheetName) {
+      var s = ss.getSheetByName(sheetName);
+      if (!s) return;
+      var d = s.getRange(1, 1, s.getLastRow(), 2).getValues();
+      for (var j = 1; j < d.length; j++) {
+        var sn = String(d[j][0] || '').toUpperCase().trim();
+        if (sn && !snModel[sn]) snModel[sn] = String(d[j][1] || '');
+      }
+    });
+
+    // Log_Penjualan_Invoice headers (15 cols A-O):
+    // A=No_Invoice, B=ID_Laptop, C=Nama_Pembeli, D=Modal, E=Harga_Final,
+    // F=Tanggal_Jual, G=Sales, H=Staff_Handle, I=Status_Pembayaran,
+    // J=MARGIN, K=Fee_Sales, L=Fee_Handling, M=Metode_Bayar, N=Rincian_Nominal, O=Catatan
+    // We output: Lokasi, Model, No_Invoice, ID_Laptop, Nama_Pembeli, Modal, Harga_Final,
+    //            Tanggal_Jual, Sales, Staff_Handle, Status_Pembayaran, Metode_Bayar, Rincian_Nominal, Catatan
+    var outHeaders = ['Lokasi', 'Model', 'No Invoice', 'Serial Number', 'Nama Pembeli', 'Modal', 'Harga Penjualan',
+                      'Tanggal', 'Sales', 'Handler', 'Status', 'Metode Bayar', 'Rincian Pembayaran', 'Catatan'];
 
     var start = parsePenjualanDate(startDate);
     var end = parsePenjualanDate(endDate);
-    // Set end to end of day (23:59:59) to include all times on that date
     if (end) end.setHours(23, 59, 59, 999);
 
-    // Collect all data rows
     var rows = [];
-    var headers = allData[headerRow];
-    var numCols = headers.length;
+    for (var i = 1; i < allData.length; i++) {
+      var r = allData[i];
+      // Skip empty rows (check invoice no and SN)
+      if (!String(r[0] || '').trim() && !String(r[1] || '').trim()) continue;
 
-    for (var i = headerRow + 1; i < allData.length; i++) {
-      var row = allData[i];
-      // Skip completely empty rows
-      var isEmpty = true;
-      for (var c = 0; c < row.length; c++) {
-        if (String(row[c] || '').trim()) { isEmpty = false; break; }
-      }
-      if (isEmpty) continue;
-
-      // Filter by date
-      var rowDate = parsePenjualanDate(String(row[tglCol] || ''));
+      // Filter by date (col F = index 5 = Tanggal_Jual)
+      var tanggalRaw = String(r[5] || '').trim();
+      var rowDate = parsePenjualanDate(tanggalRaw);
       if (start && rowDate && rowDate < start) continue;
       if (end && rowDate && rowDate > end) continue;
 
-      // Pad row to match header columns
-      var paddedRow = [];
-      for (var c = 0; c < numCols; c++) {
-        paddedRow.push(String(row[c] || ''));
-      }
-      rows.push(paddedRow);
+      var sn = String(r[1] || '').toUpperCase().trim();
+      var lokasi = snLokasi[sn] || '-';
+      var model = snModel[sn] || '-';
+
+      rows.push([
+        lokasi,                    // Lokasi (from lookup)
+        model,                     // Model (from lookup)
+        String(r[0] || ''),       // No_Invoice
+        String(r[1] || ''),       // ID_Laptop (SN)
+        String(r[2] || ''),       // Nama_Pembeli
+        String(r[3] || ''),       // Modal
+        String(r[4] || ''),       // Harga_Final
+        tanggalRaw,                // Tanggal_Jual
+        String(r[6] || ''),       // Sales
+        String(r[7] || ''),       // Staff_Handle
+        String(r[8] || ''),       // Status_Pembayaran
+        String(r[12] || ''),      // Metode_Bayar
+        String(r[13] || ''),      // Rincian_Nominal
+        String(r[14] || '')       // Catatan
+      ]);
     }
 
-    return {ok: true, headers: headers, data: rows, count: rows.length};
+    return {ok: true, headers: outHeaders, data: rows, count: rows.length};
   } catch(e) {
     return {ok: false, msg: 'Error: ' + e.toString()};
   }
@@ -1329,7 +1296,7 @@ function generatePenjualanExcel(startDate, endDate) {
         var hdr = String(headers[c] || '').toLowerCase().trim();
         if ((hdr === 'toko' || hdr.indexOf('toko') >= 0 || hdr.indexOf('cabang') >= 0 || hdr.indexOf('lokasi') >= 0) && hToko < 0) hToko = c;
         if (hdr.indexOf('penjualan') >= 0 && hPenjGrafik < 0) hPenjGrafik = c;
-        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarang < 0) hNamaBarang = c;
+        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0 || hdr === 'model') && hNamaBarang < 0) hNamaBarang = c;
         if ((hdr === 'sales' || hdr.indexOf('sales') >= 0 || hdr.indexOf('nama sales') >= 0) && hSalesGrafik < 0) hSalesGrafik = c;
       }
 
@@ -1611,9 +1578,9 @@ function generatePenjualanExcel(startDate, endDate) {
         var hdr = String(headers[c] || '').toLowerCase().trim();
         if ((hdr === 'toko' || hdr.indexOf('toko') >= 0 || hdr.indexOf('cabang') >= 0 || hdr.indexOf('lokasi') >= 0) && hTokoL < 0) hTokoL = c;
         if (hdr.indexOf('penjualan') >= 0 && hPenjL < 0) hPenjL = c;
-        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0) && hNamaBarangL < 0) hNamaBarangL = c;
+        if ((hdr.indexOf('nama barang') >= 0 || hdr.indexOf('tipe barang') >= 0 || hdr.indexOf('nama_barang') >= 0 || hdr === 'model') && hNamaBarangL < 0) hNamaBarangL = c;
         if ((hdr === 'sales' || hdr.indexOf('sales') >= 0 || hdr.indexOf('nama sales') >= 0) && hSalesL < 0) hSalesL = c;
-        if (hdr === 'handle' && hHandleL < 0) hHandleL = c;
+        if ((hdr === 'handle' || hdr.indexOf('handler') >= 0) && hHandleL < 0) hHandleL = c;
         if ((hdr.indexOf('harga awal') >= 0 || hdr.indexOf('hpp') >= 0 || hdr === 'modal' || hdr.indexOf('harga beli') >= 0) && hModalL < 0) hModalL = c;
       }
 
@@ -3055,3 +3022,58 @@ function tutupBuku() {
     return {ok: false, msg: 'Error: ' + e.toString()};
   }
 }
+
+function doGet(e) {
+  return servePage(e);
+}
+
+// Wrapper supaya doGet asli tetap jalan untuk Page.html
+function servePage(e) {
+  var page = (e && e.parameter && e.parameter.page) || 'main';
+  if (page === 'debug_penjualan') {
+    var result = debugPenjualanDates();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result, null, 2) + '</pre>').setTitle('Debug Penjualan');
+  }
+  if (page === 'bulk_update_modal') {
+    var result = bulkUpdateModalVlookup();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Modal');
+  }
+  if (page === 'fix_margin') {
+    var result = bulkFixMarginFormulas();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix Margin');
+  }
+  if (page === 'bulk_update_rupiah') {
+    var result = bulkUpdateHargaRupiah();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Bulk Update Rupiah');
+  }
+  if (page === 'fix_dp_validation') {
+    var result = fixDpValidation();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result) + '</pre>').setTitle('Fix DP Validation');
+  }
+  if (page === 'pdf') {
+    var invNo = e.parameter.inv || '';
+    var snParam = e.parameter.sn || '';
+    var data = getInvoiceData(invNo, snParam);
+    if (!data) return HtmlService.createHtmlOutput('Invoice tidak ditemukan').setTitle('Error');
+    var tpl = HtmlService.createTemplateFromFile('InvoicePDF');
+    tpl.data = data;
+    return tpl.evaluate().setTitle('Invoice ' + invNo)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+  if (page === 'servis_pdf') {
+    var sn = e.parameter.sn || '';
+    var data = getServisInvoiceData(sn);
+    if (!data) return HtmlService.createHtmlOutput('Invoice servis tidak ditemukan').setTitle('Error');
+    var tpl = HtmlService.createTemplateFromFile('ServisInvoicePDF');
+    tpl.data = data;
+    return tpl.evaluate().setTitle('Invoice Servis ' + sn)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+  return HtmlService.createHtmlOutputFromFile('Page')
+    .setTitle('Fanboy Stock Manager')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
