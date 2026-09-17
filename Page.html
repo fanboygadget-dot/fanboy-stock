@@ -3076,6 +3076,7 @@
     }
 
     function submitReturnStok(evt) {
+      try {
       if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
       var rows = document.querySelectorAll('#rtSnContainer .rt-sn-row');
       var snList = [];
@@ -3101,26 +3102,40 @@
       if (!confirm('Return ' + snList.length + ' SN?\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
       var btn = evt && evt.target ? evt.target : null;
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
-      google.script.run.withSuccessHandler(function(res){
-        var el = $('rtInfo');
-        el.style.display = 'block';
-        if (res.ok) {
-          el.className = 'msg-success';
-          var detail = (res.results||[]).map(function(r){ return (r.ok?'✅':'❌') + ' ' + r.sn + ': ' + r.msg; }).join('<br>');
-          el.innerHTML = '✅ ' + res.msg + '<div style="margin-top:8px;font-size:12px;text-align:left">' + detail + '</div>';
-          // reset form
-          document.querySelectorAll('.rtSnInput').forEach(function(inp){ inp.value=''; });
-          document.querySelectorAll('.rtAlasanInput').forEach(function(inp){ inp.value=''; });
-          $('rtExpedisi').value='';
-          renderReturnStokLog();
-        } else {
-          el.className = 'msg-error'; el.textContent = '❌ ' + res.msg;
-        }
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
-      }).batchReturnStok({
-        snList: snList, alasanList: alasanList, tanggalKirim: tglFmt, expedisi: expedisi,
-        role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
-      });
+      google.script.run
+        .withSuccessHandler(function(res){
+          var el = $('rtInfo');
+          el.style.display = 'block';
+          if (res && res.ok) {
+            el.className = 'msg-success';
+            var detail = (res.results||[]).map(function(r){ return (r.ok?'✅':'❌') + ' ' + r.sn + ': ' + r.msg; }).join('<br>');
+            el.innerHTML = '✅ ' + res.msg + '<div style="margin-top:8px;font-size:12px;text-align:left">' + detail + '</div>';
+            // reset form
+            document.querySelectorAll('.rtSnInput').forEach(function(inp){ inp.value=''; });
+            document.querySelectorAll('.rtAlasanInput').forEach(function(inp){ inp.value=''; });
+            $('rtExpedisi').value='';
+            renderReturnStokLog();
+          } else {
+            el.className = 'msg-error'; el.textContent = '❌ ' + (res ? res.msg : 'Respons kosong');
+          }
+          if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
+        })
+        .withFailureHandler(function(err){
+          var el = $('rtInfo');
+          el.style.display = 'block';
+          el.className = 'msg-error';
+          el.textContent = '❌ Error server: ' + (err && err.message ? err.message : err);
+          if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
+        })
+        .batchReturnStok({
+          snList: snList, alasanList: alasanList, tanggalKirim: tglFmt, expedisi: expedisi,
+          role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
+        });
+      } catch(e) {
+        var el2 = $('rtInfo');
+        if (el2) { el2.style.display='block'; el2.className='msg-error'; el2.textContent='❌ Error: ' + (e.message||e); }
+        var b2 = evt && evt.target; if (b2) { b2.disabled=false; b2.innerHTML='<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
+      }
     }
 
     function renderReturnStokLog() {
