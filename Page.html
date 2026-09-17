@@ -944,76 +944,36 @@
       <div id="page-returnstok" style="display:none">
         <div class="page-title"><i class="fas fa-undo-alt"></i> Return Stok</div>
         <div class="card">
-          <div style="display:flex;gap:8px;margin-bottom:16px">
-            <button class="btn btn-primary input-tab active" onclick="switchReturnTab(this,'satuan')"><i class="fas fa-laptop"></i> Return Satuan</button>
-            <button class="btn btn-outline input-tab" onclick="switchReturnTab(this,'batch')"><i class="fas fa-layer-group"></i> Return Batch</button>
-          </div>
-
-          <!-- SATUAN -->
-          <div id="returnSatuan">
-            <div style="padding:0 4px">
-              <div style="margin-bottom:12px">
-                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Serial Number (SN)</label>
-                <select id="rtSn" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-                  <option value="">— Pilih SN dari Inventaris_Laptop —</option>
-                </select>
-              </div>
-              <div style="margin-bottom:12px">
-                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return</label>
-                <textarea id="rtAlasan" placeholder="Cth: layar bergaris, tidak nyala, salah spesifikasi..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:64px;resize:vertical"></textarea>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                <div>
-                  <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Tanggal Kirim Return</label>
-                  <input type="date" id="rtTanggal" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-                </div>
-                <div>
-                  <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Expedisi Pengiriman</label>
-                  <input type="text" id="rtExpedisi" placeholder="Cth: JNE, Sicepat, J&T" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+          <div style="padding:16px">
+            <div style="margin-bottom:12px">
+              <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Serial Number (SN) — bisa cari & tambah lebih dari 1</label>
+              <div id="rtSnContainer">
+                <div class="rt-sn-row" style="display:flex;gap:8px;margin-bottom:8px">
+                  <div class="autocomplete-wrap" style="flex:1">
+                    <input type="text" class="rtSnInput" placeholder="Ketik SN / cari dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">
+                    <div class="autocomplete-list rtSnAc"></div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" style="display:none" title="Hapus">✕</button>
                 </div>
               </div>
-              <div id="rtInfo" class="msg" style="display:none"></div>
-              <button class="btn btn-primary" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
+              <button type="button" class="btn btn-sm btn-outline" onclick="addRtSnRow()"><i class="fas fa-plus"></i> Tambah SN Lain</button>
             </div>
-          </div>
-
-          <!-- BATCH -->
-          <div id="returnBatch" style="display:none">
-            <div style="padding:0 4px">
-              <div class="filters" style="margin-bottom:12px">
-                <input type="text" class="search-box" id="rtBatchSearch" placeholder="Cari SN / Model..." oninput="renderReturnBatchList()">
-                <select class="filter-select" id="rtBatchStatus" onchange="renderReturnBatchList()">
-                  <option value="">Semua Status</option>
-                  <option value="Available">Available</option>
-                  <option value="Returned">Returned</option>
-                  <option value="problem">Problems</option>
-                  <option value="Sold">Sold</option>
-                  <option value="DP">DP</option>
-                </select>
-                <button class="btn btn-sm btn-outline" onclick="rtBatchSelectAll(true)">Pilih Semua</button>
-                <button class="btn btn-sm btn-outline" onclick="rtBatchSelectAll(false)">Reset</button>
+            <div style="margin-bottom:12px">
+              <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return</label>
+              <textarea id="rtAlasan" placeholder="Cth: layar bergaris, tidak nyala, salah spesifikasi..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:64px;resize:vertical"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <div>
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Tanggal Kirim Return</label>
+                <input type="date" id="rtTanggal" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
               </div>
-              <div class="table-wrap" id="rtBatchList" style="max-height:320px;overflow-y:auto"></div>
-
-              <div style="margin-top:16px;border-top:1px dashed var(--border);padding-top:16px">
-                <div style="margin-bottom:12px">
-                  <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return (untuk semua terpilih)</label>
-                  <textarea id="rtBatchAlasan" placeholder="Cth: layar bergaris, tidak nyala, salah spesifikasi..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:64px;resize:vertical"></textarea>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-                  <div>
-                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Tanggal Kirim Return</label>
-                    <input type="date" id="rtBatchTanggal" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-                  </div>
-                  <div>
-                    <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Expedisi Pengiriman</label>
-                    <input type="text" id="rtBatchExpedisi" placeholder="Cth: JNE, Sicepat, J&T" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-                  </div>
-                </div>
-                <div id="rtBatchInfo" class="msg" style="display:none"></div>
-                <button class="btn btn-primary" onclick="submitBatchReturnStok(event)"><i class="fas fa-layer-group"></i> Proses Return Batch (<span id="rtBatchCount">0</span> SN)</button>
+              <div>
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Expedisi Pengiriman</label>
+                <input type="text" id="rtExpedisi" placeholder="Cth: JNE, Sicepat, J&T" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
               </div>
             </div>
+            <div id="rtInfo" class="msg" style="display:none"></div>
+            <button class="btn btn-primary" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
           </div>
         </div>
         <div class="card" style="margin-top:16px">
@@ -3037,106 +2997,116 @@
         var t = new Date();
         var iso = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
         $('rtTanggal').value = iso;
-        if ($('rtBatchTanggal')) $('rtBatchTanggal').value = iso;
       }
-      // Load SN options untuk dropdown satuan + list batch
+      // Load SN options untuk autocomplete
       google.script.run.withSuccessHandler(function(opts){
         rtSnOptions = opts || [];
-        // populate dropdown satuan
-        var sel = $('rtSn');
-        if (sel) {
-          sel.innerHTML = '<option value="">— Pilih SN dari Inventaris_Laptop —</option>';
-          opts.forEach(function(o){
-            var op = document.createElement('option');
-            op.value = o.sn;
-            op.textContent = o.sn + ' — ' + (o.model||'') + ' (' + (o.status||'') + ', ' + (o.lokasi||'') + ')';
-            sel.appendChild(op);
-          });
-        }
+        // pasang autocomplete di semua row SN yang ada
+        document.querySelectorAll('.rtSnInput').forEach(function(inp){
+          if (!inp.dataset.bound) { setupRtSnAc(inp); inp.dataset.bound = '1'; }
+        });
       }).getReturnSnOptions();
-      renderReturnBatchList();
       renderReturnStokLog();
     }
 
     var rtSnOptions = [];
 
-    function switchReturnTab(btn, tab) {
-      document.querySelectorAll('#page-returnstok .input-tab').forEach(function(b){ b.classList.remove('active'); b.classList.add('btn-outline'); });
-      btn.classList.add('active'); btn.classList.remove('btn-outline');
-      $('returnSatuan').style.display = (tab==='satuan') ? 'block' : 'none';
-      $('returnBatch').style.display = (tab==='batch') ? 'block' : 'none';
+    // Autocomplete SN row (search dari Inventaris_Laptop)
+    function setupRtSnAc(input) {
+      var wrap = input.closest('.autocomplete-wrap');
+      if (!wrap) return;
+      var listEl = wrap.querySelector('.rtSnAc');
+      if (!listEl) return;
+      var idx = -1;
+      input.oninput = function() {
+        var val = this.value.toUpperCase();
+        listEl.innerHTML = '';
+        idx = -1;
+        if (val.length < 1) { listEl.style.display='none'; return; }
+        var matches = rtSnOptions.filter(function(r){ return (r.sn||'').toUpperCase().indexOf(val)>-1 || (r.model||'').toUpperCase().indexOf(val)>-1; }).slice(0,8);
+        if (!matches.length) { listEl.style.display='none'; return; }
+        matches.forEach(function(r){
+          var div = document.createElement('div');
+          div.className='autocomplete-item';
+          div.textContent = r.sn + ' - ' + (r.model||'') + ' (' + (r.status||'') + ', ' + (r.lokasi||'') + ')';
+          div.onclick = function() { input.value = r.sn; listEl.style.display='none'; };
+          listEl.appendChild(div);
+        });
+        listEl.style.display='block';
+      };
+      input.onkeydown = function(e) {
+        var items = listEl.querySelectorAll('.autocomplete-item');
+        if (e.key==='ArrowDown') { e.preventDefault(); idx=Math.min(idx+1,items.length-1); items.forEach(function(it,i){it.style.background=i===idx?'#e2e8f0':'';}); }
+        else if (e.key==='ArrowUp') { e.preventDefault(); idx=Math.max(idx-1,0); items.forEach(function(it,i){it.style.background=i===idx?'#e2e8f0':'';}); }
+        else if (e.key==='Enter' && idx>=0 && items[idx]) { e.preventDefault(); items[idx].click(); }
+      };
+      document.addEventListener('click', function(e){ if (e.target!==input) listEl.style.display='none'; });
     }
 
-    function renderReturnBatchList() {
-      if (!currentUser || currentUser.role !== 'admin') return;
-      var q = $('rtBatchSearch') ? $('rtBatchSearch').value.trim().toUpperCase() : '';
-      var sf = $('rtBatchStatus') ? $('rtBatchStatus').value : '';
-      var data = rtSnOptions.filter(function(o){
-        var mQ = !q || (o.sn + ' ' + o.model).toUpperCase().indexOf(q) !== -1;
-        var mS = !sf || o.status === sf;
-        return mQ && mS;
+    function addRtSnRow() {
+      var container = $('rtSnContainer');
+      var row = document.createElement('div');
+      row.className = 'rt-sn-row';
+      row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+      row.innerHTML = '<div class="autocomplete-wrap" style="flex:1">'
+        + '<input type="text" class="rtSnInput" placeholder="Ketik SN / cari dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">'
+        + '<div class="autocomplete-list rtSnAc"></div></div>'
+        + '<button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" title="Hapus">✕</button>';
+      container.appendChild(row);
+      var inp = row.querySelector('.rtSnInput');
+      setupRtSnAc(inp);
+      inp.dataset.bound = '1';
+      // tampilkan tombol hapus di semua row (kecuali cuma 1)
+      updateRtSnRemoveBtns();
+      inp.focus();
+    }
+
+    function removeRtSnRow(btn) {
+      var row = btn.closest('.rt-sn-row');
+      if (row) row.remove();
+      updateRtSnRemoveBtns();
+    }
+
+    function updateRtSnRemoveBtns() {
+      var rows = document.querySelectorAll('#rtSnContainer .rt-sn-row');
+      rows.forEach(function(r, i){
+        var b = r.querySelector('button[onclick^="removeRtSnRow"]');
+        if (b) b.style.display = rows.length > 1 ? 'inline-block' : 'none';
       });
-      var h = '<table><tr><th style="width:36px"><input type="checkbox" id="rtBatchAll" onchange="rtBatchSelectAll(this.checked)"></th><th>SN</th><th>Model</th><th>Status</th><th>Lokasi</th></tr>';
-      data.forEach(function(o){
-        var badge = o.status === 'Returned' ? 'badge-red' : (o.status === 'Available' ? 'badge-green' : 'badge-orange');
-        h += '<tr><td><input type="checkbox" class="rtBatchCb" value="' + esc(o.sn) + '"></td>'
-          + '<td><strong>' + esc(o.sn) + '</strong></td>'
-          + '<td>' + esc(o.model) + '</td>'
-          + '<td><span class="badge ' + badge + '">' + esc(o.status) + '</span></td>'
-          + '<td>' + esc(o.lokasi) + '</td></tr>';
-      });
-      h += '</table>';
-      $('rtBatchList').innerHTML = h;
-      updateRtBatchCount();
     }
 
-    function rtBatchSelectAll(v) {
-      if (typeof v === 'boolean') {
-        document.querySelectorAll('.rtBatchCb').forEach(function(cb){ cb.checked = v; });
-      }
-      if ($('rtBatchAll')) $('rtBatchAll').checked = v;
-      updateRtBatchCount();
-    }
-
-    function updateRtBatchCount() {
-      var n = document.querySelectorAll('.rtBatchCb:checked').length;
-      $('rtBatchCount').textContent = n;
-    }
-
-    function submitBatchReturnStok(evt) {
+    function submitReturnStok(evt) {
       if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
-      var cbs = document.querySelectorAll('.rtBatchCb:checked');
+      var inputs = document.querySelectorAll('.rtSnInput');
       var snList = [];
-      cbs.forEach(function(cb){ snList.push(cb.value.trim().toUpperCase()); });
-      if (!snList.length) { alert('Pilih minimal 1 SN'); return; }
-      var alasan = $('rtBatchAlasan').value.trim();
-      var tanggal = $('rtBatchTanggal').value.trim();
-      var expedisi = $('rtBatchExpedisi').value.trim();
+      inputs.forEach(function(inp){ var v = inp.value.trim().toUpperCase(); if (v) snList.push(v); });
+      if (!snList.length) { alert('Masukkan minimal 1 SN'); return; }
+      var alasan = $('rtAlasan').value.trim();
+      var tanggal = $('rtTanggal').value.trim();
+      var expedisi = $('rtExpedisi').value.trim();
       if (!alasan) { alert('Alasan return wajib diisi'); return; }
       if (!tanggal) { alert('Tanggal kirim return wajib diisi'); return; }
       if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
       var parts = tanggal.split('-');
       var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
-      if (!confirm('Return batch ' + snList.length + ' SN?\nAlasan: ' + alasan + '\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
+      if (!confirm('Return ' + snList.length + ' SN?\nAlasan: ' + alasan + '\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
       var btn = evt && evt.target ? evt.target : null;
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
       google.script.run.withSuccessHandler(function(res){
-        var el = $('rtBatchInfo');
+        var el = $('rtInfo');
         el.style.display = 'block';
         if (res.ok) {
           el.className = 'msg-success';
           var detail = (res.results||[]).map(function(r){ return (r.ok?'✅':'❌') + ' ' + r.sn + ': ' + r.msg; }).join('<br>');
           el.innerHTML = '✅ ' + res.msg + '<div style="margin-top:8px;font-size:12px;text-align:left">' + detail + '</div>';
-          // reset
-          $('rtBatchAlasan').value=''; $('rtBatchExpedisi').value='';
-          cbs.forEach(function(cb){ cb.checked=false; });
-          updateRtBatchCount();
-          renderReturnBatchList();
+          // reset form
+          document.querySelectorAll('.rtSnInput').forEach(function(inp){ inp.value=''; });
+          $('rtAlasan').value=''; $('rtExpedisi').value='';
           renderReturnStokLog();
         } else {
           el.className = 'msg-error'; el.textContent = '❌ ' + res.msg;
         }
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-layer-group"></i> Proses Return Batch (<span id="rtBatchCount">' + (snList.length) + '</span> SN)'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
       }).batchReturnStok({
         snList: snList, alasan: alasan, tanggalKirim: tglFmt, expedisi: expedisi,
         role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
