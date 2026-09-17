@@ -23,12 +23,24 @@ echo "=== Step 1: clasp push ==="
 clasp push 2>&1
 
 echo ""
-echo "=== Step 2: clasp deploy ==="
-DEPLOY_OUTPUT=$(clasp deploy 2>&1)
+echo "=== Step 2: clasp deploy (update existing or create) ==="
+# Ambil deployment ID yang saat ini dipakai di index.html (jika ada)
+CURRENT_ID=$(grep -oE 'AKfycb[a-zA-Z0-9_-]+' index.html | head -1)
+
+if [ -n "$CURRENT_ID" ] && clasp deployments 2>/dev/null | grep -q "$CURRENT_ID"; then
+  echo "Updating existing deployment: $CURRENT_ID"
+  DEPLOY_OUTPUT=$(clasp deploy --deploymentId "$CURRENT_ID" 2>&1)
+else
+  echo "Creating new deployment (current: ${CURRENT_ID:-none})"
+  DEPLOY_OUTPUT=$(clasp deploy 2>&1)
+fi
 echo "$DEPLOY_OUTPUT"
 
-# Extract deployment URL (AKfycb...) dari output clasp (compatible tanpa -P)
+# Extract deployment ID (AKfycb...) — dari output clasp atau fallback ke current
 DEPLOY_ID=$(echo "$DEPLOY_OUTPUT" | grep -oE 'AKfycb[a-zA-Z0-9_-]+' | head -1)
+if [ -z "$DEPLOY_ID" ] && [ -n "$CURRENT_ID" ]; then
+  DEPLOY_ID="$CURRENT_ID"
+fi
 if [ -z "$DEPLOY_ID" ]; then
   echo "ERROR: Could not extract deployment ID from clasp output"
   echo "$DEPLOY_OUTPUT"

@@ -3174,43 +3174,6 @@
       }).getReturnStokLog();
     }
 
-    function submitReturnStok(evt) {
-      if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
-      var sn = $('rtSn').value.trim().toUpperCase();
-      var alasan = $('rtAlasan').value.trim();
-      var tanggal = $('rtTanggal').value.trim();
-      var expedisi = $('rtExpedisi').value.trim();
-      if (!sn) { alert('SN wajib diisi'); return; }
-      if (!alasan) { alert('Alasan return wajib diisi'); return; }
-      if (!tanggal) { alert('Tanggal kirim return wajib diisi'); return; }
-      if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
-
-      // Format tanggal ke dd/MM/yyyy
-      var parts = tanggal.split('-');
-      var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
-
-      if (!confirm('Return stok:\nSN: ' + sn + '\nAlasan: ' + alasan + '\nKirim: ' + tglFmt + ' via ' + expedisi + '\n\nLanjutkan?')) return;
-
-      var btn = evt && evt.target ? evt.target : null;
-      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
-
-      google.script.run.withSuccessHandler(function(res) {
-        var el = $('rtInfo');
-        el.style.display = 'block';
-        if (res.ok) {
-          el.className = 'msg-success'; el.textContent = '✅ ' + res.msg;
-          $('rtSn').value = ''; $('rtAlasan').value = ''; $('rtExpedisi').value = '';
-        } else {
-          el.className = 'msg-error'; el.textContent = '❌ ' + res.msg;
-        }
-        setTimeout(function(){ el.style.display = 'none'; }, 5000);
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
-      }).returnStok({
-        sn: sn, alasan: alasan, tanggalKirim: tglFmt, expedisi: expedisi,
-        role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
-      });
-    }
-
     // PENGATURAN
     function loadConfig() {
       google.script.run.withSuccessHandler(function(cfg) {
