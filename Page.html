@@ -948,19 +948,18 @@
             <div style="margin-bottom:12px">
               <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Serial Number (SN) — bisa cari & tambah lebih dari 1</label>
               <div id="rtSnContainer">
-                <div class="rt-sn-row" style="display:flex;gap:8px;margin-bottom:8px">
-                  <div class="autocomplete-wrap" style="flex:1">
-                    <input type="text" class="rtSnInput" placeholder="Ketik SN / cari dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">
-                    <div class="autocomplete-list rtSnAc"></div>
+                <div class="rt-sn-row" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+                  <div style="display:flex;gap:8px;align-items:flex-start">
+                    <div class="autocomplete-wrap" style="flex:1">
+                      <input type="text" class="rtSnInput" placeholder="Ketik SN / cari dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">
+                      <div class="autocomplete-list rtSnAc"></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" style="display:none" title="Hapus">✕</button>
                   </div>
-                  <button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" style="display:none" title="Hapus">✕</button>
+                  <textarea class="rtAlasanInput" placeholder="Alasan return SN ini..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:48px;resize:vertical"></textarea>
                 </div>
               </div>
               <button type="button" class="btn btn-sm btn-outline" onclick="addRtSnRow()"><i class="fas fa-plus"></i> Tambah SN Lain</button>
-            </div>
-            <div style="margin-bottom:12px">
-              <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return</label>
-              <textarea id="rtAlasan" placeholder="Cth: layar bergaris, tidak nyala, salah spesifikasi..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:64px;resize:vertical"></textarea>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
               <div>
@@ -973,7 +972,7 @@
               </div>
             </div>
             <div id="rtInfo" class="msg" style="display:none"></div>
-            <button class="btn btn-primary" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
+            <button class="btn btn-primary" style="position:relative;z-index:60" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
           </div>
         </div>
         <div class="card" style="margin-top:16px">
@@ -3047,16 +3046,17 @@
       var container = $('rtSnContainer');
       var row = document.createElement('div');
       row.className = 'rt-sn-row';
-      row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
-      row.innerHTML = '<div class="autocomplete-wrap" style="flex:1">'
+      row.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:10px';
+      row.innerHTML = '<div style="display:flex;gap:8px;align-items:flex-start">'
+        + '<div class="autocomplete-wrap" style="flex:1">'
         + '<input type="text" class="rtSnInput" placeholder="Ketik SN / cari dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">'
         + '<div class="autocomplete-list rtSnAc"></div></div>'
-        + '<button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" title="Hapus">✕</button>';
+        + '<button type="button" class="btn btn-sm btn-outline" onclick="removeRtSnRow(this)" title="Hapus">✕</button></div>'
+        + '<textarea class="rtAlasanInput" placeholder="Alasan return SN ini..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:48px;resize:vertical"></textarea>';
       container.appendChild(row);
       var inp = row.querySelector('.rtSnInput');
       setupRtSnAc(inp);
       inp.dataset.bound = '1';
-      // tampilkan tombol hapus di semua row (kecuali cuma 1)
       updateRtSnRemoveBtns();
       inp.focus();
     }
@@ -3077,19 +3077,28 @@
 
     function submitReturnStok(evt) {
       if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
-      var inputs = document.querySelectorAll('.rtSnInput');
+      var rows = document.querySelectorAll('#rtSnContainer .rt-sn-row');
       var snList = [];
-      inputs.forEach(function(inp){ var v = inp.value.trim().toUpperCase(); if (v) snList.push(v); });
+      var alasanList = [];
+      var missing = [];
+      rows.forEach(function(row, i){
+        var sn = (row.querySelector('.rtSnInput').value || '').trim().toUpperCase();
+        var al = (row.querySelector('.rtAlasanInput').value || '').trim();
+        if (sn) {
+          snList.push(sn);
+          alasanList.push(al);
+          if (!al) missing.push(sn);
+        }
+      });
       if (!snList.length) { alert('Masukkan minimal 1 SN'); return; }
-      var alasan = $('rtAlasan').value.trim();
+      if (missing.length) { alert('Alasan return wajib diisi untuk SN:\n' + missing.join(', ')); return; }
       var tanggal = $('rtTanggal').value.trim();
       var expedisi = $('rtExpedisi').value.trim();
-      if (!alasan) { alert('Alasan return wajib diisi'); return; }
       if (!tanggal) { alert('Tanggal kirim return wajib diisi'); return; }
       if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
       var parts = tanggal.split('-');
       var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
-      if (!confirm('Return ' + snList.length + ' SN?\nAlasan: ' + alasan + '\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
+      if (!confirm('Return ' + snList.length + ' SN?\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
       var btn = evt && evt.target ? evt.target : null;
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
       google.script.run.withSuccessHandler(function(res){
@@ -3101,14 +3110,15 @@
           el.innerHTML = '✅ ' + res.msg + '<div style="margin-top:8px;font-size:12px;text-align:left">' + detail + '</div>';
           // reset form
           document.querySelectorAll('.rtSnInput').forEach(function(inp){ inp.value=''; });
-          $('rtAlasan').value=''; $('rtExpedisi').value='';
+          document.querySelectorAll('.rtAlasanInput').forEach(function(inp){ inp.value=''; });
+          $('rtExpedisi').value='';
           renderReturnStokLog();
         } else {
           el.className = 'msg-error'; el.textContent = '❌ ' + res.msg;
         }
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
       }).batchReturnStok({
-        snList: snList, alasan: alasan, tanggalKirim: tglFmt, expedisi: expedisi,
+        snList: snList, alasanList: alasanList, tanggalKirim: tglFmt, expedisi: expedisi,
         role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
       });
     }

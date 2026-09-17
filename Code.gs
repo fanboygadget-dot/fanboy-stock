@@ -2676,11 +2676,10 @@ function getReturnSnOptions() {
 function batchReturnStok(data) {
   if (!data || data.role !== 'admin') return {ok: false, msg: 'Akses ditolak: fitur ini hanya untuk admin'};
   var snList = (data.snList || []).map(function(s){ return String(s).toUpperCase().trim(); }).filter(Boolean);
+  var alasanList = (data.alasanList || []);
   if (!snList.length) return {ok: false, msg: 'Pilih minimal 1 SN'};
-  var alasan = String(data.alasan || '').trim();
   var tglKirim = String(data.tanggalKirim || '').trim();
   var expedisi = String(data.expedisi || '').trim();
-  if (!alasan) return {ok: false, msg: 'Alasan return wajib diisi'};
   if (!tglKirim) return {ok: false, msg: 'Tanggal kirim return wajib diisi'};
   if (!expedisi) return {ok: false, msg: 'Expedisi pengiriman wajib diisi'};
 
@@ -2709,6 +2708,8 @@ function batchReturnStok(data) {
   var okCount = 0;
   for (var k = 0; k < snList.length; k++) {
     var sn = snList[k];
+    var alasan = String(alasanList[k] || '').trim();
+    if (!alasan) { results.push({sn: sn, ok: false, msg: 'Alasan kosong'}); continue; }
     var found = idxMap[sn];
     if (found === undefined) { results.push({sn: sn, ok: false, msg: 'SN tidak ditemukan'}); continue; }
     var model = String(rows[found][1] || '');
@@ -2719,7 +2720,7 @@ function batchReturnStok(data) {
     sheet.getRange(found + 1, 7).setValue('Returned');
     // Stamp history
     var oldHist = String(rows[found][10] || '');
-    var newEntry = now + ' | RETURN STOK (BATCH) | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
+    var newEntry = now + ' | RETURN STOK | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
     sheet.getRange(found + 1, 11).setValue(oldHist ? oldHist + '\n' + newEntry : newEntry);
     // Log
     logSheet.appendRow([sn, model, spec, lokasiLama, supplierAsal, alasan, tglKirim, expedisi, now, handler]);
