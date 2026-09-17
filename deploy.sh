@@ -27,24 +27,22 @@ echo "=== Step 2: clasp deploy ==="
 DEPLOY_OUTPUT=$(clasp deploy 2>&1)
 echo "$DEPLOY_OUTPUT"
 
-# Extract deployment ID from output
-DEPLOY_ID=$(echo "$DEPLOY_OUTPUT" | grep -oP '- \K[A-Za-z0-9_-]+(?=\s|$)' | tail -1)
+# Extract deployment URL (AKfycb...) dari output clasp (compatible tanpa -P)
+DEPLOY_ID=$(echo "$DEPLOY_OUTPUT" | grep -oE 'AKfycb[a-zA-Z0-9_-]+' | head -1)
 if [ -z "$DEPLOY_ID" ]; then
-  echo "WARNING: Could not extract deployment ID from clasp output"
-  echo "Trying alternative parse..."
-  DEPLOY_ID=$(echo "$DEPLOY_OUTPUT" | grep -oP 'AKfyc[a-zA-Z0-9_-]+' | tail -1)
+  echo "ERROR: Could not extract deployment ID from clasp output"
+  echo "$DEPLOY_OUTPUT"
+  exit 1
 fi
-
-SCRIPT_ID=$(python3 -c "import json; print(json.load(open('.clasp.json'))['scriptId'])")
-DEPLOY_URL="https://script.google.com/macros/s/AKfycbyuGroOvpJcO53GpBE5x89m9VZz9o1MuG_bSCaPGmMP8TBjCdiNQb4QXvxxQGXlo6ar/exec"
+DEPLOY_URL="https://script.google.com/macros/s/${DEPLOY_ID}/exec"
 
 echo ""
 echo "=== Step 3: Update index.html with new URL ==="
 echo "New deploy URL: $DEPLOY_URL"
 
-# Update index.html
-sed -i "s|https://script.google.com/macros/s/AKfycby2BdAfuI4F4WnwzF2NufDqRQxRE27dwUWNCjgsmr3ElZHIzdGM2scfRa3MZV7YXcJQ/exec|${DEPLOY_URL}|" index.html
-# Also update the display text link
+# Update window.location.replace(...) — generic, match URL apa pun
+sed -i "s|window.location.replace(\"https://script.google.com/macros/s/[^\"]*\")|window.location.replace(\"${DEPLOY_URL}\")|" index.html
+# Update link display href
 sed -i "s|href=\"https://script.google.com/macros/s/[^\"]*\"|href=\"${DEPLOY_URL}\"|" index.html
 
 echo ""
