@@ -2651,6 +2651,84 @@ function returnStok(data) {
   return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dikirim ' + tglKirim + ' via ' + expedisi};
 }
 
+// --- GET SN OPTIONS FOR RETURN DROPDOWN (admin only) ---
+function getReturnSnOptions() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  var items = [];
+  for (var i = 1; i < data.length; i++) {
+    var sn = String(data[i][0] || '').trim();
+    if (!sn) continue;
+    items.push({
+      sn: sn,
+      model: String(data[i][1] || ''),
+      status: String(data[i][6] || ''),
+      lokasi: String(data[i][9] || '').toUpperCase().trim()
+    });
+  }
+  return items;
+}
+
+// --- BATCH RETURN STOK (admin only) ---
+// data: { snList:[...], alasan, tanggalKirim, expedisi, role, staff }
+function batchReturnStok(data) {
+  if (!data || data.role !== 'admin') return {ok: false, msg: 'Akses ditolak: fitur ini hanya untuk admin'};
+  var snList = (data.snList || []).map(function(s){ return String(s).toUpperCase().trim(); }).filter(Boolean);
+  if (!snList.length) return {ok: false, msg: 'Pilih minimal 1 SN'};
+  var alasan = String(data.alasan || '').trim();
+  var tglKirim = String(data.tanggalKirim || '').trim();
+  var expedisi = String(data.expedisi || '').trim();
+  if (!alasan) return {ok: false, msg: 'Alasan return wajib diisi'};
+  if (!tglKirim) return {ok: false, msg: 'Tanggal kirim return wajib diisi'};
+  if (!expedisi) return {ok: false, msg: 'Expedisi pengiriman wajib diisi'};
+
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  if (!sheet) return {ok: false, msg: 'Sheet Inventaris_Laptop tidak ditemukan'};
+  var rows = sheet.getDataRange().getValues();
+
+  var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
+  var handler = getCurrentStaff(data.staff) || 'Admin';
+
+  // Build SN -> rowIndex map
+  var idxMap = {};
+  for (var i = 1; i < rows.length; i++) {
+    var s = String(rows[i][0] || '').toUpperCase().trim();
+    if (s) idxMap[s] = i;
+  }
+
+  var logSheet = ss.getSheetByName('Log_return_stok');
+  if (!logSheet) {
+    logSheet = ss.insertSheet('Log_return_stok');
+    logSheet.appendRow(['SN', 'Model', 'Spec', 'Lokasi_Lama', 'Supplier_Asal', 'Alasan', 'Tanggal_Kirim_Return', 'Expedisi', 'Tanggal_Input', 'Staff_Input']);
+  }
+
+  var results = [];
+  var okCount = 0;
+  for (var k = 0; k < snList.length; k++) {
+    var sn = snList[k];
+    var found = idxMap[sn];
+    if (found === undefined) { results.push({sn: sn, ok: false, msg: 'SN tidak ditemukan'}); continue; }
+    var model = String(rows[found][1] || '');
+    var spec = String(rows[found][2] || '');
+    var lokasiLama = String(rows[found][9] || '').toUpperCase().trim();
+    var supplierAsal = String(rows[found][8] || '');
+    // Update status -> Returned
+    sheet.getRange(found + 1, 7).setValue('Returned');
+    // Stamp history
+    var oldHist = String(rows[found][10] || '');
+    var newEntry = now + ' | RETURN STOK (BATCH) | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
+    sheet.getRange(found + 1, 11).setValue(oldHist ? oldHist + '\n' + newEntry : newEntry);
+    // Log
+    logSheet.appendRow([sn, model, spec, lokasiLama, supplierAsal, alasan, tglKirim, expedisi, now, handler]);
+    results.push({sn: sn, ok: true, msg: 'OK'});
+    okCount++;
+  }
+  return {ok: true, msg: okCount + ' dari ' + snList.length + ' SN berhasil return', results: results};
+}
+
 // --- GET RETURN STOK LOG (admin only) ---
 function getReturnStokLog() {
   var ss = SpreadsheetApp.openById(SS_ID);
