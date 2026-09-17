@@ -319,6 +319,9 @@
         <div class="nav-item" onclick="switchPage('geser')" data-page="geser">
           <i class="fas fa-exchange-alt"></i> <span>Geser Stok</span>
         </div>
+        <div class="nav-item staff-hidden" onclick="switchPage('returnstok')" data-page="returnstok">
+          <i class="fas fa-undo-alt"></i> <span>Return Stok</span>
+        </div>
         <div class="nav-item staff-hidden" onclick="switchPage('pengaturan')" data-page="pengaturan">
           <i class="fas fa-cog"></i> <span>Pengaturan</span>
         </div>
@@ -879,6 +882,16 @@
             <span><i class="fas fa-database"></i> Stok yang Sudah Terjual</span>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-warning btn-sm staff-hidden" id="btnTutupBuku" onclick="doTutupBuku()" style="font-weight:700"><i class="fas fa-book"></i> Tutup Buku</button>
+              <select id="tutupBukuMonth" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                <option value="">Bulan (default: bln lalu)</option>
+                <option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option>
+                <option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option>
+                <option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option>
+                <option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option>
+              </select>
+              <select id="tutupBukuYear" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                <option value="">Tahun (default: auto)</option>
+              </select>
               <select id="dbsoldMonth" onchange="loadSoldDatabase()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
                 <option value="">Semua Bulan</option>
               </select>
@@ -924,6 +937,43 @@
           <div style="padding:16px;display:none" id="geserAction">
             <button class="btn btn-primary" onclick="doTransfer()"><i class="fas fa-exchange-alt"></i> Geser <span id="geserCount">0</span> Item</button>
           </div>
+        </div>
+      </div>
+      
+      <!-- RETURN STOK (ADMIN) -->
+      <div id="page-returnstok" style="display:none">
+        <div class="page-title"><i class="fas fa-undo-alt"></i> Return Stok</div>
+        <div class="card">
+          <div class="card-header"><i class="fas fa-truck-loading"></i> Form Return Barang ke Supplier</div>
+          <div style="padding:16px">
+            <div style="margin-bottom:12px">
+              <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Serial Number (SN)</label>
+              <input type="text" id="rtSn" placeholder="Cth: SN12345" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase">
+            </div>
+            <div style="margin-bottom:12px">
+              <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return</label>
+              <textarea id="rtAlasan" placeholder="Cth: layar bergaris, tidak nyala, salah spesifikasi..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;min-height:64px;resize:vertical"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <div>
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Tanggal Kirim Return</label>
+                <input type="date" id="rtTanggal" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Expedisi Pengiriman</label>
+                <input type="text" id="rtExpedisi" placeholder="Cth: JNE, Sicepat, J&T" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+              </div>
+            </div>
+            <div id="rtInfo" class="msg" style="display:none"></div>
+            <button class="btn btn-primary" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header"><i class="fas fa-list"></i> Riwayat Return Stok <span id="rtLogCount" class="badge badge-gray" style="margin-left:8px"></span></div>
+          <div class="filters">
+            <input type="text" class="search-box" id="rtLogSearch" placeholder="Cari SN, Model, Alasan, Expedisi..." oninput="renderReturnStokLog()">
+          </div>
+          <div class="table-wrap" id="rtLogContent"><div style="font-size:13px;color:var(--gray);padding:12px">Memuat...</div></div>
         </div>
       </div>
       
@@ -1025,6 +1075,7 @@
       else if(page==='riwayat') { loadRiwayat(); initPenjualanDates(); }
       else if(page==='dbsold') initSoldDatabase();
       else if(page==='geser') initGeserPage();
+      else if(page==='returnstok') initReturnStokPage();
       else if(page==='pengaturan') loadConfig();
       if(window.innerWidth<=768) toggleSidebar();
     }
@@ -2634,7 +2685,21 @@
 
     function doTutupBuku() {
       if (!(currentUser && currentUser.role === 'admin')) { alert('Hanya admin yang bisa tutup buku'); return; }
-      if (!confirm('Tutup Buku akan memindahkan SEMUA stok "Sold" dari Inventaris ke Database Sold.\n\nLanjutkan?')) return;
+      var bm = $('tutupBukuMonth').value || '';
+      var by = $('tutupBukuYear').value || '';
+      if (!bm) { alert('Pilih bulan yang akan ditutup.'); return; }
+      // Kalau tahun lupa dipilih, auto = tahun sekarang (bukan balik default salah)
+      if (!by) by = String(new Date().getFullYear());
+      bm = parseInt(bm, 10); by = parseInt(by, 10);
+      // BLOKIR tutup bulan yang SAMA (bulan berjalan) — hanya boleh bulan sebelumnya/lewat
+      var now = new Date();
+      var curM = now.getMonth() + 1, curY = now.getFullYear();
+      if (bm === curM && by === curY) {
+        alert('Tidak bisa Tutup Buku untuk bulan berjalan (' + bm + '/' + by + ').\nTutup Buku hanya untuk bulan SEBELUMNYA / sudah lewat.');
+        return;
+      }
+      var label = (bm && by) ? ('bulan ' + bm + '/' + by) : 'bulan lalu (default)';
+      if (!confirm('Tutup Buku akan memindahkan stok "Sold" yang terjual di ' + label + ' dari Inventaris ke Database Sold.\nTanggal Log = tanggal jual asli.\n\nLanjutkan?')) return;
 
       var btn = $('btnTutupBuku');
       btn.disabled = true;
@@ -2648,7 +2713,7 @@
           el.textContent = r.msg;
           el.className = 'msg msg-success';
           el.style.display = 'block';
-          loadSoldDatabase(); // refresh table
+          initSoldDatabase(); // refresh table + dropdown bulan
         } else {
           el.textContent = r.msg;
           el.className = 'msg msg-error';
@@ -2661,7 +2726,7 @@
         el.textContent = 'Error: ' + err.message;
         el.className = 'msg msg-error';
         el.style.display = 'block';
-      }).tutupBuku();
+      }).tutupBuku(bm, by);
     }
 
     function initSoldDatabase() {
@@ -2683,6 +2748,26 @@
           sel.innerHTML += '<option value="'+l+'"'+(l===cur?' selected':'')+'>'+l+'</option>';
         });
       }).getLocations();
+      // Isi dropdown tahun Tutup Buku (tahun berjalan + 3 tahun lalu)
+      (function() {
+        var ys = $('tutupBukuYear');
+        if (!ys) return;
+        var curY = new Date().getFullYear();
+        var html = '<option value="">Tahun (default: auto)</option>';
+        for (var y = curY; y >= curY - 3; y--) {
+          html += '<option value="'+y+'">'+y+'</option>';
+        }
+        ys.innerHTML = html;
+        // Auto-pilih BULAN SEBELUMNYA (default Tutup Buku) + tahunnya
+        var now = new Date();
+        var pm = now.getMonth();           // 0 = Jan
+        var py = now.getFullYear();
+        if (pm === 0) { pm = 12; py = py - 1; } // Jan -> Des thn lalu
+        var bmSel = $('tutupBukuMonth');
+        var bySel = $('tutupBukuYear');
+        if (bmSel) bmSel.value = String(pm);
+        if (bySel) bySel.value = String(py);
+      })();
       loadSoldDatabase();
     }
     
@@ -2893,6 +2978,94 @@
       }).transferStock({snList:snList, toLocation:toLoc, handler:handler, staff:handler});
     }
     
+    // RETURN STOK (ADMIN)
+    function initReturnStokPage() {
+      if (currentUser && currentUser.role !== 'admin') {
+        $('page-returnstok').innerHTML = '<div class="page-title"><i class="fas fa-undo-alt"></i> Return Stok</div><div class="card"><div class="card-header" style="color:#ef4444">Akses Ditolak</div><div style="padding:16px;font-size:13px;color:var(--gray)">Menu ini hanya untuk admin.</div></div>';
+        return;
+      }
+      // Default tanggal kirim = hari ini
+      if ($('rtTanggal') && !$('rtTanggal').value) {
+        var t = new Date();
+        var iso = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+        $('rtTanggal').value = iso;
+      }
+      renderReturnStokLog();
+    }
+
+    function renderReturnStokLog() {
+      if (!currentUser || currentUser.role !== 'admin') return;
+      google.script.run.withSuccessHandler(function(rows) {
+        var q = $('rtLogSearch') ? $('rtLogSearch').value.trim().toUpperCase() : '';
+        var data = rows || [];
+        if (q) {
+          data = data.filter(function(r) {
+            return (r.sn + ' ' + r.model + ' ' + r.alasan + ' ' + r.expedisi).toUpperCase().indexOf(q) !== -1;
+          });
+        }
+        var cnt = $('rtLogCount');
+        if (cnt) cnt.textContent = data.length + ' data';
+        if (!data.length) {
+          $('rtLogContent').innerHTML = '<div style="font-size:13px;color:var(--gray);padding:12px">Belum ada data return stok.</div>';
+          return;
+        }
+        var h = '<table><tr><th>SN</th><th>Model</th><th>Alasan</th><th>Tgl Kirim</th><th>Expedisi</th><th>Lokasi</th><th>Supplier</th><th>Input</th><th>Staff</th></tr>';
+        for (var i = 0; i < data.length; i++) {
+          var r = data[i];
+          h += '<tr>'
+            + '<td><strong>' + esc(r.sn) + '</strong></td>'
+            + '<td>' + esc(r.model) + '</td>'
+            + '<td>' + esc(r.alasan) + '</td>'
+            + '<td>' + esc(r.tanggalKirim) + '</td>'
+            + '<td><span class="badge badge-blue">' + esc(r.expedisi) + '</span></td>'
+            + '<td>' + esc(r.lokasiLama) + '</td>'
+            + '<td>' + esc(r.supplierAsal) + '</td>'
+            + '<td>' + esc(r.tanggalInput) + '</td>'
+            + '<td>' + esc(r.staffInput) + '</td>'
+            + '</tr>';
+        }
+        h += '</table>';
+        $('rtLogContent').innerHTML = h;
+      }).getReturnStokLog();
+    }
+
+    function submitReturnStok(evt) {
+      if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
+      var sn = $('rtSn').value.trim().toUpperCase();
+      var alasan = $('rtAlasan').value.trim();
+      var tanggal = $('rtTanggal').value.trim();
+      var expedisi = $('rtExpedisi').value.trim();
+      if (!sn) { alert('SN wajib diisi'); return; }
+      if (!alasan) { alert('Alasan return wajib diisi'); return; }
+      if (!tanggal) { alert('Tanggal kirim return wajib diisi'); return; }
+      if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
+
+      // Format tanggal ke dd/MM/yyyy
+      var parts = tanggal.split('-');
+      var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
+
+      if (!confirm('Return stok:\nSN: ' + sn + '\nAlasan: ' + alasan + '\nKirim: ' + tglFmt + ' via ' + expedisi + '\n\nLanjutkan?')) return;
+
+      var btn = evt && evt.target ? evt.target : null;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+
+      google.script.run.withSuccessHandler(function(res) {
+        var el = $('rtInfo');
+        el.style.display = 'block';
+        if (res.ok) {
+          el.className = 'msg-success'; el.textContent = '✅ ' + res.msg;
+          $('rtSn').value = ''; $('rtAlasan').value = ''; $('rtExpedisi').value = '';
+        } else {
+          el.className = 'msg-error'; el.textContent = '❌ ' + res.msg;
+        }
+        setTimeout(function(){ el.style.display = 'none'; }, 5000);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo-alt"></i> Proses Return Stok'; }
+      }).returnStok({
+        sn: sn, alasan: alasan, tanggalKirim: tglFmt, expedisi: expedisi,
+        role: currentUser ? currentUser.role : '', staff: currentUser ? (currentUser.name || 'Admin') : 'Admin'
+      });
+    }
+
     // PENGATURAN
     function loadConfig() {
       google.script.run.withSuccessHandler(function(cfg) {

@@ -2598,6 +2598,86 @@ function transferStock(data) {
   return {ok: true, msg: moved + ' item berhasil dipindah ke ' + toLoc.toUpperCase()};
 }
 
+// --- RETURN STOK (admin only) ---
+// Field: SN, Alasan return, Tanggal kirim return, Expedisi pengiriman.
+// Update status Inventaris_Laptop -> 'Returned', log ke Log_return_stok.
+function returnStok(data) {
+  if (!data || data.role !== 'admin') return {ok: false, msg: 'Akses ditolak: fitur ini hanya untuk admin'};
+
+  var sn = String(data.sn || '').toUpperCase().trim();
+  if (!sn) return {ok: false, msg: 'SN wajib diisi'};
+  var alasan = String(data.alasan || '').trim();
+  var tglKirim = String(data.tanggalKirim || '').trim();
+  var expedisi = String(data.expedisi || '').trim();
+  if (!alasan) return {ok: false, msg: 'Alasan return wajib diisi'};
+  if (!tglKirim) return {ok: false, msg: 'Tanggal kirim return wajib diisi'};
+  if (!expedisi) return {ok: false, msg: 'Expedisi pengiriman wajib diisi'};
+
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var sheet = ss.getSheetByName('Inventaris_Laptop');
+  if (!sheet) return {ok: false, msg: 'Sheet Inventaris_Laptop tidak ditemukan'};
+
+  var rows = sheet.getDataRange().getValues();
+  var found = -1;
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || '').toUpperCase().trim() === sn) { found = i; break; }
+  }
+  if (found === -1) return {ok: false, msg: 'SN tidak ditemukan: ' + sn};
+
+  var model = String(rows[found][1] || '');
+  var spec = String(rows[found][2] || '');
+  var lokasiLama = String(rows[found][9] || '').toUpperCase().trim();
+  var supplierAsal = String(rows[found][8] || '');
+  var statusLama = String(rows[found][6] || '');
+  var handler = getCurrentStaff(data.staff) || 'Admin';
+
+  // Update status -> Returned (kolom G = index 6 -> 1-indexed 7)
+  sheet.getRange(found + 1, 7).setValue('Returned');
+
+  // Stamp return info ke history lokasi (kolom K = index 10 -> 1-indexed 11)
+  var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
+  var oldHist = String(rows[found][10] || '');
+  var newEntry = now + ' | RETURN STOK | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
+  sheet.getRange(found + 1, 11).setValue(oldHist ? oldHist + '\n' + newEntry : newEntry);
+
+  // Log ke Log_return_stok (auto-create kalau belum ada)
+  var logSheet = ss.getSheetByName('Log_return_stok');
+  if (!logSheet) {
+    logSheet = ss.insertSheet('Log_return_stok');
+    logSheet.appendRow(['SN', 'Model', 'Spec', 'Lokasi_Lama', 'Supplier_Asal', 'Alasan', 'Tanggal_Kirim_Return', 'Expedisi', 'Tanggal_Input', 'Staff_Input']);
+  }
+  logSheet.appendRow([sn, model, spec, lokasiLama, supplierAsal, alasan, tglKirim, expedisi, now, handler]);
+
+  return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dikirim ' + tglKirim + ' via ' + expedisi};
+}
+
+// --- GET RETURN STOK LOG (admin only) ---
+function getReturnStokLog() {
+  var ss = SpreadsheetApp.openById(SS_ID);
+  var logSheet = ss.getSheetByName('Log_return_stok');
+  if (!logSheet) return [];
+  var data = logSheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var rows = [];
+  // Skip header, iterate newest first
+  for (var i = data.length - 1; i >= 1; i--) {
+    var r = data[i];
+    rows.push({
+      sn: String(r[0] || ''),
+      model: String(r[1] || ''),
+      spec: String(r[2] || ''),
+      lokasiLama: String(r[3] || ''),
+      supplierAsal: String(r[4] || ''),
+      alasan: String(r[5] || ''),
+      tanggalKirim: String(r[6] || ''),
+      expedisi: String(r[7] || ''),
+      tanggalInput: String(r[8] || ''),
+      staffInput: String(r[9] || '')
+    });
+  }
+  return rows;
+}
+
 // --- AUTH CONFIG: Save allowed Gmail addresses ---
 function saveAuthConfig(data) {
   var props = PropertiesService.getScriptProperties();
@@ -2929,7 +3009,7 @@ function getSoldMonths() {
   var data = sheet.getDataRange().getDisplayValues();
   var months = {};
   for (var i = 1; i < data.length; i++) {
-    var logDate = String(data[i][13] || '');
+    var logDate = String(data[i][11] || ''); // kolom L = Tanggal_Log
     if (!logDate) continue;
     var parts = logDate.split('/');
     if (parts.length >= 2) {
@@ -2972,53 +3052,217 @@ function fixColumnFormats() {
   return {ok: true, msg: 'Berhasil convert ' + fixed + ' cell dari TEXT ke ANGKA'};
 }
 
-// --- TUTUP BUKU: Pindahkan stok Sold dari Inventaris_Laptop ke Log_stok_sold ---
-function tutupBuku() {
+// --- Parse tanggal jual dari Log_Penjualan_Invoice ke format 'dd/MM/yyyy HH:mm' ---
+// Mendukung 3 format: dd/MM/yyyy HH:mm | yyyy-MM-dd HH:mm | dd MonthName yyyy
+function parseTanggalJual(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  var monthMap = {'januari':1,'februari':2,'maret':3,'april':4,'mei':5,'juni':6,
+    'juli':7,'agustus':8,'september':9,'oktober':10,'november':11,'desember':12,
+    'january':1,'february':2,'march':3,'april':4,'may':5,'june':6,
+    'july':7,'august':8,'september':9,'october':10,'november':11,'december':12};
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  // Format 1: dd/MM/yyyy HH:mm
+  if (s.indexOf('/') !== -1 && s.length >= 10) {
+    var p = s.substring(0, 10).split('/');
+    var d = parseInt(p[0], 10), m = parseInt(p[1], 10), y = parseInt(p[2], 10);
+    if (d && m && y) {
+      var time1 = s.length > 11 ? s.substring(11) : '00:00';
+      return pad(d) + '/' + pad(m) + '/' + y + ' ' + time1;
+    }
+  }
+  // Format 2: yyyy-MM-dd HH:mm
+  if (s.indexOf('-') !== -1 && s.length >= 10) {
+    var p2 = s.substring(0, 10).split('-');
+    var y2 = parseInt(p2[0], 10), m2 = parseInt(p2[1], 10), d2 = parseInt(p2[2], 10);
+    if (y2 && m2 && d2) {
+      var time2 = s.length > 11 ? s.substring(11) : '00:00';
+      return pad(d2) + '/' + pad(m2) + '/' + y2 + ' ' + time2;
+    }
+  }
+  // Format 3: dd MonthName yyyy [HH:mm]
+  var parts3 = s.split(' ');
+  if (parts3.length >= 3) {
+    var d3 = parseInt(parts3[0], 10);
+    var m3 = monthMap[parts3[1].toLowerCase()];
+    var y3 = parseInt(parts3[2], 10);
+    if (d3 && m3 && y3) {
+      var time3 = parts3.length >= 4 ? parts3[3] : '00:00';
+      return pad(d3) + '/' + pad(m3) + '/' + y3 + ' ' + time3;
+    }
+  }
+  return '';
+}
+
+// --- TUTUP BUKU: Pindahkan stok Sold (yang terjual di bulan target) ke Log_stok_sold ---
+// Sama seperti cron move_sold_to_log.py: filter SN terjual di bulan target dari
+// Log_Penjualan_Invoice, lalu pindah hanya baris Sold di Inventaris yang SN-nya cocok.
+// Tanggal_Log = tanggal jual ASLI (bukan tanggal eksekusi).
+function tutupBuku(month, year) {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var invSheet = ss.getSheetByName('Inventaris_Laptop');
+    var logSheet = ss.getSheetByName('Log_stok_sold');
+    var invSheet2 = ss.getSheetByName('Log_Penjualan_Invoice');
+    if (!invSheet || !logSheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+
+    // Default: bulan SEBELUMNYA (konsisten dengan cron tgl 28)
+    // Pakai timezone WIB (Asia/Jakarta), BUKAN UTC — supaya "bulan berjalan" akurat
+    var TZ = 'Asia/Jakarta';
+    var now = new Date();
+    var curY = parseInt(Utilities.formatDate(now, TZ, 'yyyy'), 10);
+    var curM = parseInt(Utilities.formatDate(now, TZ, 'M'), 10); // 1-12 (WIB)
+    if (!month || !year) {
+      var defM = curM - 1, defY = curY;
+      if (defM === 0) { defM = 12; defY = curY - 1; }
+      month = defM; year = defY;
+    }
+    month = parseInt(month, 10);
+    year = parseInt(year, 10);
+    // Safety: tolak tutup buku bulan berjalan (pakai WIB, bukan UTC)
+    if (month === curM && year === curY) {
+      return {ok: false, msg: 'Tidak bisa Tutup Buku untuk bulan berjalan (' + curM + '/' + curY + ' WIB). Hanya bulan sebelumnya/sudah lewat.'};
+    }
+    var blnNama = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    // 1. Baca Log_Penjualan_Invoice -> SN (col B) -> tanggal jual asli (col F), filter bulan target
+    var snTanggal = {}; // SN(upper) -> 'dd/MM/yyyy HH:mm'
+    if (invSheet2) {
+      var inv = invSheet2.getDataRange().getValues();
+      for (var i = 1; i < inv.length; i++) {
+        var sn = String(inv[i][1] || '').trim().toUpperCase(); // col B = SN
+        var tgl = String(inv[i][5] || ''); // col F = Tanggal
+        if (!sn || !tgl) continue;
+        var fmt = parseTanggalJual(tgl);
+        if (!fmt) continue;
+        var pp = fmt.split('/');
+        var m = parseInt(pp[1], 10), y = parseInt(pp[2].substring(0, 4), 10);
+        if (m === month && y === year) {
+          if (!snTanggal[sn]) snTanggal[sn] = fmt;
+        }
+      }
+    }
+
+    var soldSNs = Object.keys(snTanggal);
+    if (soldSNs.length === 0) {
+      return {ok: true, count: 0,
+        msg: 'Tidak ada penjualan di ' + blnNama[month] + ' ' + year + ' yang perlu dipindahkan.'};
+    }
+
+    // 2. Baca Inventaris, cari baris Sold yang SN-nya terjual di bulan target
+    var allRows = invSheet.getDataRange().getValues();
+    var soldIndices = [];
+    for (var r = 1; r < allRows.length; r++) {
+      var status = String(allRows[r][6] || '').trim().toUpperCase(); // col G = Status
+      var snInv = String(allRows[r][0] || '').trim().toUpperCase(); // col A = ID_Laptop
+      if (status === 'SOLD' && snTanggal[snInv]) {
+        soldIndices.push(r);
+      }
+    }
+
+    if (soldIndices.length === 0) {
+      return {ok: true, count: 0,
+        msg: 'Tidak ada stok Sold dari ' + blnNama[month] + ' ' + year + ' di Inventaris.'};
+    }
+
+    // 3. Siapkan data append (11 kolom A-K + Tanggal_Log = tanggal jual asli)
+    var appendData = [];
+    for (var j = 0; j < soldIndices.length; j++) {
+      var row = allRows[soldIndices[j]].slice();
+      while (row.length < 11) row.push('');
+      row = row.slice(0, 11);
+      var snKey = String(allRows[soldIndices[j]][0] || '').trim().toUpperCase();
+      row.push(snTanggal[snKey]); // Tanggal_Log = tanggal jual asli
+      appendData.push(row);
+    }
+
+    // 4. Append ke Log_stok_sold
+    if (appendData.length > 0) {
+      logSheet.getRange(logSheet.getLastRow() + 1, 1, appendData.length, appendData[0].length).setValues(appendData);
+    }
+
+    // 5. Hapus baris Sold dari Inventaris_Laptop (bottom-up)
+    for (var k = soldIndices.length - 1; k >= 0; k--) {
+      invSheet.deleteRow(soldIndices[k] + 1);
+    }
+
+    return {ok: true, count: soldIndices.length,
+      msg: soldIndices.length + ' stok Sold (' + blnNama[month] + ' ' + year + ') berhasil dipindahkan ke Database Sold.'};
+  } catch (e) {
+    return {ok: false, msg: 'Error: ' + e.toString()};
+  }
+}
+
+// --- RESTORE: kembalikan data Sold dari Log_stok_sold ke Inventaris (status Sold) ---
+// targets = array of {m, y}. Hanya bulan yg disebut yg dikembalikan; bulan lain tetap di log.
+function _isInTargets(tglLog, targets) {
+  if (!tglLog) return false;
+  var pp = String(tglLog).split('/');
+  if (pp.length < 3) return false;
+  var m = parseInt(pp[1], 10), y = parseInt(String(pp[2]).substring(0,4), 10);
+  for (var t = 0; t < targets.length; t++) {
+    if (m === targets[t].m && y === targets[t].y) return true;
+  }
+  return false;
+}
+
+function previewRestoreAugSep() {
+  return _previewRestoreSold([{m:8, y:2026}, {m:9, y:2026}]);
+}
+function restoreAugSepSold() {
+  return _restoreSoldByMonths([{m:8, y:2026}, {m:9, y:2026}]);
+}
+
+function _previewRestoreSold(targets) {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    var logSheet = ss.getSheetByName('Log_stok_sold');
+    if (!logSheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
+    var log = logSheet.getDataRange().getValues();
+    var found = [];
+    for (var i = 1; i < log.length; i++) {
+      var tglLog = String(log[i][11] || '');
+      if (_isInTargets(tglLog, targets)) {
+        found.push({row: i + 1, sn: String(log[i][0] || ''), model: String(log[i][1] || ''), tglLog: tglLog});
+      }
+    }
+    return {ok: true, count: found.length, items: found,
+      msg: found.length + ' baris Sold (Agustus+September 2026) ditemukan di Log_stok_sold (belum dipindah).'};
+  } catch (e) {
+    return {ok: false, msg: 'Error: ' + e.toString()};
+  }
+}
+
+function _restoreSoldByMonths(targets) {
   try {
     var ss = SpreadsheetApp.openById(SS_ID);
     var invSheet = ss.getSheetByName('Inventaris_Laptop');
     var logSheet = ss.getSheetByName('Log_stok_sold');
     if (!invSheet || !logSheet) return {ok: false, msg: 'Sheet tidak ditemukan'};
 
-    var today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
-    var allRows = invSheet.getDataRange().getValues();
-
-    // Cari baris Sold (kolom G = index 6)
-    var soldIndices = [];
-    for (var i = 1; i < allRows.length; i++) {
-      var status = String(allRows[i][6] || '').trim().toUpperCase();
-      if (status === 'SOLD') {
-        soldIndices.push(i);
-      }
+    var log = logSheet.getDataRange().getValues();
+    var moveRows = [];
+    for (var i = 1; i < log.length; i++) {
+      var tglLog = String(log[i][11] || '');
+      if (_isInTargets(tglLog, targets)) moveRows.push(i);
     }
+    if (moveRows.length === 0) return {ok: true, count: 0, msg: 'Tidak ada data Agustus/September 2026 di Log_stok_sold.'};
 
-    if (soldIndices.length === 0) {
-      return {ok: true, count: 0, msg: 'Tidak ada stok Sold yang perlu dipindahkan.'};
-    }
-
-    // Siapkan data untuk append ke Log_stok_sold (tambah kolom Tanggal_Log)
     var appendData = [];
-    for (var j = 0; j < soldIndices.length; j++) {
-      var row = allRows[soldIndices[j]].slice(); // copy array
-      // Pad to 11 cols (A-K) + Tanggal_Log
-      while (row.length < 11) row.push('');
-      row = row.slice(0, 11); // truncate if more than 11
-      row.push(today); // Tanggal_Log
-      appendData.push(row);
+    for (var j = 0; j < moveRows.length; j++) {
+      var r = log[moveRows[j]].slice(0, 11);
+      while (r.length < 11) r.push('');
+      r[6] = 'Sold'; // col G = Status
+      appendData.push(r);
     }
-
-    // Append ke Log_stok_sold
-    if (appendData.length > 0) {
-      logSheet.getRange(logSheet.getLastRow() + 1, 1, appendData.length, appendData[0].length).setValues(appendData);
+    invSheet.getRange(invSheet.getLastRow() + 1, 1, appendData.length, appendData[0].length).setValues(appendData);
+    for (var k = moveRows.length - 1; k >= 0; k--) {
+      logSheet.deleteRow(moveRows[k] + 1);
     }
-
-    // Hapus baris Sold dari Inventaris_Laptop (bottom-up agar index tidak shift)
-    for (var k = soldIndices.length - 1; k >= 0; k--) {
-      invSheet.deleteRow(soldIndices[k] + 1); // +1 karena sheet row 1-indexed
-    }
-
-    return {ok: true, count: soldIndices.length, msg: soldIndices.length + ' stok Sold berhasil dipindahkan ke Database Sold.'};
-  } catch(e) {
+    return {ok: true, count: moveRows.length,
+      msg: moveRows.length + ' stok Sold (Agustus+September 2026) berhasil dikembalikan ke Inventaris (status Sold).'};
+  } catch (e) {
     return {ok: false, msg: 'Error: ' + e.toString()};
   }
 }
@@ -3033,6 +3277,14 @@ function servePage(e) {
   if (page === 'debug_penjualan') {
     var result = debugPenjualanDates();
     return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(result, null, 2) + '</pre>').setTitle('Debug Penjualan');
+  }
+  if (page === 'restore_sept_preview') {
+    var rp = previewRestoreAugSep();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(rp, null, 2) + '</pre>').setTitle('Preview Restore Aug+Sep');
+  }
+  if (page === 'restore_sept_do') {
+    var rd = restoreAugSepSold();
+    return HtmlService.createHtmlOutput('<pre>' + JSON.stringify(rd, null, 2) + '</pre>').setTitle('Restore Aug+Sep Result');
   }
   if (page === 'bulk_update_modal') {
     var result = bulkUpdateModalVlookup();
