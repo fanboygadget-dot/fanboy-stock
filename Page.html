@@ -948,7 +948,10 @@
           <div style="padding:16px">
             <div style="margin-bottom:12px">
               <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Serial Number (SN)</label>
-              <input type="text" id="rtSn" placeholder="Cth: SN12345" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase">
+              <div class="autocomplete-wrap">
+                <input type="text" id="rtSn" placeholder="Ketik SN / pilih dari Inventaris_Laptop" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-transform:uppercase" autocomplete="off">
+                <div class="autocomplete-list" id="rtSnAutocomplete"></div>
+              </div>
             </div>
             <div style="margin-bottom:12px">
               <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">Alasan Return</label>
@@ -2990,6 +2993,11 @@
         var iso = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
         $('rtTanggal').value = iso;
       }
+      // Isi allStock (list SN dari Inventaris_Laptop) kalau belum ada
+      if (!allStock || !allStock.length) {
+        google.script.run.withSuccessHandler(function(d){ allStock = d || []; }).getStockData();
+      }
+      setupAutocomplete($('rtSn'), $('rtSnAutocomplete'));
       renderReturnStokLog();
     }
 
