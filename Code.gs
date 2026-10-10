@@ -2600,7 +2600,8 @@ function transferStock(data) {
 
 // --- RETURN STOK (admin only) ---
 // Field: SN, Alasan return, Tanggal kirim return, Expedisi pengiriman.
-// Update status Inventaris_Laptop -> 'Returned', log ke Log_return_stok.
+// BARIS SN DIHAPUS dari Inventaris_Laptop, lalu SELURUH isi baris dipindahkan ke Log_return_stok.
+// (Item benar-benar keluar dari stok aktif; tidak sekadar ubah status.)
 function returnStok(data) {
   if (!data || data.role !== 'admin') return {ok: false, msg: 'Akses ditolak: fitur ini hanya untuk admin'};
 
@@ -2625,31 +2626,30 @@ function returnStok(data) {
   if (found === -1) return {ok: false, msg: 'SN tidak ditemukan: ' + sn};
 
   var model = String(rows[found][1] || '');
-  var spec = String(rows[found][2] || '');
-  var lokasiLama = String(rows[found][9] || '').toUpperCase().trim();
-  var supplierAsal = String(rows[found][8] || '');
-  var statusLama = String(rows[found][6] || '');
   var handler = getCurrentStaff(data.staff) || 'Admin';
-
-  // Update status -> Returned (kolom G = index 6 -> 1-indexed 7)
-  sheet.getRange(found + 1, 7).setValue('Returned');
-
-  // Stamp return info ke history lokasi (kolom K = index 10 -> 1-indexed 11)
   var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
-  var oldHist = String(rows[found][10] || '');
-  var newEntry = now + ' | RETURN STOK | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
-  sheet.getRange(found + 1, 11).setValue(oldHist ? oldHist + '\n' + newEntry : newEntry);
 
-  // Log ke Log_return_stok (auto-create kalau belum ada)
+  // Pindahkan SELURUH baris sumber + kolom log ke Log_return_stok
   var logSheet = ss.getSheetByName('Log_return_stok');
   if (!logSheet) {
     logSheet = ss.insertSheet('Log_return_stok');
-    logSheet.appendRow(['SN', 'Model', 'Spec', 'Lokasi_Lama', 'Supplier_Asal', 'Alasan', 'Tanggal_Kirim_Return', 'Expedisi', 'Tanggal_Input', 'Staff_Input']);
+    logSheet.appendRow(LOG_RETURN_HEADER);
   }
-  logSheet.appendRow([sn, model, spec, lokasiLama, supplierAsal, alasan, tglKirim, expedisi, now, handler]);
+  var sourceRow = rows[found].slice(); // salin isi baris (semua kolom A..N)
+  logSheet.appendRow(sourceRow.concat([alasan, tglKirim, expedisi, now, handler]));
 
-  return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dikirim ' + tglKirim + ' via ' + expedisi};
+  // Hapus baris dari Inventaris_Laptop (item keluar dari stok aktif)
+  sheet.deleteRow(found + 1);
+
+  return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dihapus dari stok & dipindah ke Log_return_stok. Kirim ' + tglKirim + ' via ' + expedisi};
 }
+
+// Header Log_return_stok: 13 kolom Inventaris_Laptop (A-M) + 5 kolom log return.
+var LOG_RETURN_HEADER = [
+  'SN', 'Merk_Model', 'Spesifikasi', 'Kondisi', 'Harga_Beli', 'Biaya_Servis', 'Total_Modal',
+  'Harga_Jual', 'Status_Lama', 'Tanggal_Masuk', 'Suplier', 'Lokasi_Saat_Ini', 'history_lokasi',
+  'Alasan_Return', 'Tanggal_Kirim', 'Expedisi', 'Tanggal_Input', 'Staff_Input'
+];
 
 // --- GET SN OPTIONS FOR RETURN DROPDOWN (admin only) ---
 function getReturnSnOptions() {
@@ -2701,33 +2701,33 @@ function batchReturnStok(data) {
   var logSheet = ss.getSheetByName('Log_return_stok');
   if (!logSheet) {
     logSheet = ss.insertSheet('Log_return_stok');
-    logSheet.appendRow(['SN', 'Model', 'Spec', 'Lokasi_Lama', 'Supplier_Asal', 'Alasan', 'Tanggal_Kirim_Return', 'Expedisi', 'Tanggal_Input', 'Staff_Input']);
+    logSheet.appendRow(LOG_RETURN_HEADER);
   }
 
   var results = [];
   var okCount = 0;
+  var toDelete = []; // row indices (1-indexed) to delete, processed descending
+  var logRows = [];  // full source rows to append to log
   for (var k = 0; k < snList.length; k++) {
     var sn = snList[k];
     var alasan = String(alasanList[k] || '').trim();
     if (!alasan) { results.push({sn: sn, ok: false, msg: 'Alasan kosong'}); continue; }
     var found = idxMap[sn];
     if (found === undefined) { results.push({sn: sn, ok: false, msg: 'SN tidak ditemukan'}); continue; }
-    var model = String(rows[found][1] || '');
-    var spec = String(rows[found][2] || '');
-    var lokasiLama = String(rows[found][9] || '').toUpperCase().trim();
-    var supplierAsal = String(rows[found][8] || '');
-    // Update status -> Returned
-    sheet.getRange(found + 1, 7).setValue('Returned');
-    // Stamp history
-    var oldHist = String(rows[found][10] || '');
-    var newEntry = now + ' | RETURN STOK | ' + alasan + ' | Kirim: ' + tglKirim + ' via ' + expedisi + ' | by ' + handler;
-    sheet.getRange(found + 1, 11).setValue(oldHist ? oldHist + '\n' + newEntry : newEntry);
-    // Log
-    logSheet.appendRow([sn, model, spec, lokasiLama, supplierAsal, alasan, tglKirim, expedisi, now, handler]);
-    results.push({sn: sn, ok: true, msg: 'OK'});
+    // Pindahkan SELURUH baris sumber + kolom log
+    var sourceRow = rows[found].slice();
+    logRows.push(sourceRow.concat([alasan, tglKirim, expedisi, now, handler]));
+    toDelete.push(found + 1);
+    results.push({sn: sn, ok: true, msg: 'Dihapus dari stok & dipindah ke Log_return_stok'});
     okCount++;
   }
-  return {ok: true, msg: okCount + ' dari ' + snList.length + ' SN berhasil return', results: results};
+
+  // Append semua log dulu (isi baris penuh), lalu hapus baris dari Inventaris_Laptop.
+  for (var j = 0; j < logRows.length; j++) logSheet.appendRow(logRows[j]);
+  toDelete.sort(function(a, b) { return b - a; }); // descending agar indeks tidak geser
+  for (var d = 0; d < toDelete.length; d++) sheet.deleteRow(toDelete[d]);
+
+  return {ok: true, msg: okCount + ' dari ' + snList.length + ' SN berhasil return (dipindah ke Log_return_stok)', results: results};
 }
 
 // --- GET RETURN STOK LOG (admin only) ---
@@ -2745,13 +2745,13 @@ function getReturnStokLog() {
       sn: String(r[0] || ''),
       model: String(r[1] || ''),
       spec: String(r[2] || ''),
-      lokasiLama: String(r[3] || ''),
-      supplierAsal: String(r[4] || ''),
-      alasan: String(r[5] || ''),
-      tanggalKirim: String(r[6] || ''),
-      expedisi: String(r[7] || ''),
-      tanggalInput: String(r[8] || ''),
-      staffInput: String(r[9] || '')
+      lokasiLama: String(r[11] || ''),
+      supplierAsal: String(r[10] || ''),
+      alasan: String(r[13] || ''),
+      tanggalKirim: String(r[14] || ''),
+      expedisi: String(r[15] || ''),
+      tanggalInput: String(r[16] || ''),
+      staffInput: String(r[17] || '')
     });
   }
   return rows;
