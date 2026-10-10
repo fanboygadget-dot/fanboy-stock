@@ -3079,26 +3079,32 @@
 
     function submitReturnStok(evt) {
       try {
-      if (currentUser && currentUser.role !== 'admin') { alert('Akses ditolak: hanya admin'); return; }
+      var _ri = $('rtInfo');
+      function _warn(m){ if(_ri){ _ri.style.display='block'; _ri.className='msg-error'; _ri.textContent='❌ '+m; } return; }
+      // alert()/confirm() diblokir di sandbox iframe GAS -> pakai feedback visual rtInfo
+      if (currentUser && currentUser.role !== 'admin') { _warn('Akses ditolak: hanya admin'); return; }
       var rows = document.querySelectorAll('#rtSnContainer .rt-sn-row');
       var snList = [];
       var alasanList = [];
       var missing = [];
       rows.forEach(function(row, i){
-        var sn = (row.querySelector('.rtSnInput').value || '').trim().toUpperCase();
-        var al = (row.querySelector('.rtAlasanInput').value || '').trim();
+        var inp = row.querySelector('.rtSnInput');
+        var alInp = row.querySelector('.rtAlasanInput');
+        var sn = (inp && inp.value || '').trim().toUpperCase();
+        var al = (alInp && alInp.value || '').trim();
         if (sn) {
           snList.push(sn);
           alasanList.push(al);
           if (!al) missing.push(sn);
         }
       });
-      if (!snList.length) { alert('Masukkan minimal 1 SN'); return; }
-      if (missing.length) { alert('Alasan return wajib diisi untuk SN:\n' + missing.join(', ')); return; }
-      var tanggal = $('rtTanggal').value.trim();
-      var expedisi = $('rtExpedisi').value.trim();
-      if (!tanggal) { alert('Tanggal kirim return wajib diisi'); return; }
-      if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
+      if (!snList.length) { _warn('Masukkan minimal 1 SN'); return; }
+      if (missing.length) { _warn('Alasan return wajib diisi untuk SN: ' + missing.join(', ')); return; }
+      var _tglEl = $('rtTanggal'), _expEl = $('rtExpedisi');
+      var tanggal = _tglEl && _tglEl.value ? _tglEl.value.trim() : '';
+      var expedisi = _expEl && _expEl.value ? _expEl.value.trim() : '';
+      if (!tanggal) { _warn('Tanggal kirim return wajib diisi'); return; }
+      if (!expedisi) { _warn('Expedisi pengiriman wajib diisi'); return; }
       var parts = tanggal.split('-');
       var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
       // NOTE: confirm() sering diblokir di iframe GAS (dialog tidak muncul -> return false -> tombol diam).
@@ -3321,6 +3327,12 @@
     window.renderServisFinalInline = renderServisFinalInline;
     window._printHTML = _printHTML;
     window.selectAutocomplete = function(el, inputId) { $(inputId).value = el.textContent; el.parentNode.style.display='none'; };
+    // Pastikan handler return bisa dipanggil dari onclick inline (sandbox GAS kadang perlu di window)
+    window.submitReturnStok = submitReturnStok;
+    window.addRtSnRow = addRtSnRow;
+    window.removeRtSnRow = removeRtSnRow;
+    window.renderReturnStokLog = renderReturnStokLog;
+    window.initReturnStokPage = initReturnStokPage;
     
     // Check stored auth or auto Google login
     (function() {
