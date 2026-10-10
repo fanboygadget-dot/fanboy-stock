@@ -2,6 +2,7 @@
   "scriptId": "1xAUBl5WnxoF43qh1_BIci_QI4pULv6YlHAEnprbNzIqkAK-o5LhFBQhA",
   "rootDir": "/home/bgs/fanboy-stock",
   "ignore": [
-    "scripts/**"
+    "scripts/**",
+    "**/scripts/**"
   ]
 }
