@@ -2600,8 +2600,9 @@ function transferStock(data) {
 
 // --- RETURN STOK (admin only) ---
 // Field: SN, Alasan return, Tanggal kirim return, Expedisi pengiriman.
-// BARIS SN DIHAPUS dari Inventaris_Laptop, lalu SELURUH isi baris dipindahkan ke Log_return_stok.
-// (Item benar-benar keluar dari stok aktif; tidak sekadar ubah status.)
+// BARIS SN DIHAPUS dari Inventaris_Laptop, lalu SELURUH isi baris dipindahkan ke Log_return_stok_web.
+// (Item benar-benar keluar dari stok aktif; tidak sekadar ubah status.
+//  Web pakai sheet terpisah Log_return_stok_web agar tidak korup Log_Return_Stok milik bot Telegram RETURN.)
 function returnStok(data) {
   if (!data || data.role !== 'admin') return {ok: false, msg: 'Akses ditolak: fitur ini hanya untuk admin'};
 
@@ -2629,10 +2630,11 @@ function returnStok(data) {
   var handler = getCurrentStaff(data.staff) || 'Admin';
   var now = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
 
-  // Pindahkan SELURUH baris sumber + kolom log ke Log_return_stok
-  var logSheet = ss.getSheetByName('Log_return_stok');
+  // Pindahkan SELURUH baris sumber + kolom log ke Log_return_stok_web
+  // (sheet terpisah dari bot RETURN agar tidak korup Log_Return_Stok)
+  var logSheet = ss.getSheetByName('Log_return_stok_web');
   if (!logSheet) {
-    logSheet = ss.insertSheet('Log_return_stok');
+    logSheet = ss.insertSheet('Log_return_stok_web');
     logSheet.appendRow(LOG_RETURN_HEADER);
   }
   var sourceRow = rows[found].slice(); // salin isi baris (semua kolom A..N)
@@ -2641,7 +2643,7 @@ function returnStok(data) {
   // Hapus baris dari Inventaris_Laptop (item keluar dari stok aktif)
   sheet.deleteRow(found + 1);
 
-  return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dihapus dari stok & dipindah ke Log_return_stok. Kirim ' + tglKirim + ' via ' + expedisi};
+  return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dihapus dari stok & dipindah ke Log_return_stok_web. Kirim ' + tglKirim + ' via ' + expedisi};
 }
 
 // Header Log_return_stok: 13 kolom Inventaris_Laptop (A-M) + 5 kolom log return.
@@ -2698,9 +2700,9 @@ function batchReturnStok(data) {
     if (s) idxMap[s] = i;
   }
 
-  var logSheet = ss.getSheetByName('Log_return_stok');
+  var logSheet = ss.getSheetByName('Log_return_stok_web');
   if (!logSheet) {
-    logSheet = ss.insertSheet('Log_return_stok');
+    logSheet = ss.insertSheet('Log_return_stok_web');
     logSheet.appendRow(LOG_RETURN_HEADER);
   }
 
@@ -2727,13 +2729,13 @@ function batchReturnStok(data) {
   toDelete.sort(function(a, b) { return b - a; }); // descending agar indeks tidak geser
   for (var d = 0; d < toDelete.length; d++) sheet.deleteRow(toDelete[d]);
 
-  return {ok: true, msg: okCount + ' dari ' + snList.length + ' SN berhasil return (dipindah ke Log_return_stok)', results: results};
+  return {ok: true, msg: okCount + ' dari ' + snList.length + ' SN berhasil return (dipindah ke Log_return_stok_web)', results: results};
 }
 
 // --- GET RETURN STOK LOG (admin only) ---
 function getReturnStokLog() {
   var ss = SpreadsheetApp.openById(SS_ID);
-  var logSheet = ss.getSheetByName('Log_return_stok');
+  var logSheet = ss.getSheetByName('Log_return_stok_web');
   if (!logSheet) return [];
   var data = logSheet.getDataRange().getValues();
   if (data.length < 2) return [];
