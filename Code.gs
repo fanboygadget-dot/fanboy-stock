@@ -2646,12 +2646,21 @@ function returnStok(data) {
   return {ok: true, msg: 'Return stok berhasil: ' + sn + ' (' + (model || '-') + ') dihapus dari stok & dipindah ke Log_return_stok_web. Kirim ' + tglKirim + ' via ' + expedisi};
 }
 
-// Header Log_return_stok: 13 kolom Inventaris_Laptop (A-M) + 5 kolom log return.
+// Header Log_return_stok_web: 14 kolom Inventaris_Laptop (A-N) + 5 kolom log return.
+// CATATAN: sourceRow berisi 14 kolom Inventaris_Laptop, lalu concat 5 kolom log
+// sehingga: Alasan_Return(14) Tanggal_Kirim(15) Expedisi(16) Tanggal_Input(17) Staff_Input(18).
 var LOG_RETURN_HEADER = [
-  'SN', 'Merk_Model', 'Spesifikasi', 'Kondisi', 'Harga_Beli', 'Biaya_Servis', 'Total_Modal',
-  'Harga_Jual', 'Status_Lama', 'Tanggal_Masuk', 'Suplier', 'Lokasi_Saat_Ini', 'history_lokasi',
+  'ID_Laptop', 'Merk_Model', 'Spesifikasi', 'Kondisi', 'Harga_Beli', 'Harga_Jual', 'Status_Lama',
+  'Tanggal_Masuk', 'Suplier', 'Lokasi_Saat_Ini', 'history_lokasi', 'Staff_input', 'Staff_handle', 'Foto_Barang',
   'Alasan_Return', 'Tanggal_Kirim', 'Expedisi', 'Tanggal_Input', 'Staff_Input'
 ];
+
+// Parse "dd/MM/yyyy" atau "dd/MM/yyyy HH:mm" -> timestamp (untuk urut riwayat)
+function _returnLogTs(s) {
+  var m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (!m) return 0;
+  return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)).getTime();
+}
 
 // --- GET SN OPTIONS FOR RETURN DROPDOWN (admin only) ---
 function getReturnSnOptions() {
@@ -2735,28 +2744,48 @@ function batchReturnStok(data) {
 // --- GET RETURN STOK LOG (admin only) ---
 function getReturnStokLog() {
   var ss = SpreadsheetApp.openById(SS_ID);
-  var logSheet = ss.getSheetByName('Log_return_stok_web');
-  if (!logSheet) return [];
-  var data = logSheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-  var rows = [];
-  // Skip header, iterate newest first
-  for (var i = data.length - 1; i >= 1; i--) {
-    var r = data[i];
-    rows.push({
-      sn: String(r[0] || ''),
-      model: String(r[1] || ''),
-      spec: String(r[2] || ''),
-      lokasiLama: String(r[11] || ''),
-      supplierAsal: String(r[10] || ''),
-      alasan: String(r[13] || ''),
-      tanggalKirim: String(r[14] || ''),
-      expedisi: String(r[15] || ''),
-      tanggalInput: String(r[16] || ''),
-      staffInput: String(r[17] || '')
-    });
+  var out = [];
+
+  // Web: Log_return_stok_web (19 kolom = 14 Inventaris A-N + 5 kolom log)
+  //   0 ID_Laptop | 1 Merk_Model | 2 Spesifikasi | 8 Suplier | 9 Lokasi_Saat_Ini
+  //   14 Alasan_Return | 15 Tanggal_Kirim | 16 Expedisi | 17 Tanggal_Input | 18 Staff_Input
+  var web = ss.getSheetByName('Log_return_stok_web');
+  if (web) {
+    var d = web.getDataRange().getValues();
+    for (var i = 1; i < d.length; i++) {
+      var r = d[i];
+      if (!r[0]) continue;
+      out.push({
+        sn: String(r[0] || ''), model: String(r[1] || ''), spec: String(r[2] || ''),
+        supplierAsal: String(r[8] || ''), lokasiLama: String(r[9] || ''),
+        alasan: String(r[14] || ''), tanggalKirim: String(r[15] || ''),
+        expedisi: String(r[16] || ''), tanggalInput: String(r[17] || ''), staffInput: String(r[18] || ''),
+        _t: _returnLogTs(String(r[17] || r[15] || ''))
+      });
+    }
   }
-  return rows;
+
+  // Bot Telegram: Log_Return_Stok (10 kolom)
+  //   0 SN | 1 Model | 2 Spec | 3 Lokasi_Lama | 4 Supplier_Asal | 5 Tanggal_Return | 8 Staff_Input | 9 Alasan
+  var bot = ss.getSheetByName('Log_Return_Stok');
+  if (bot) {
+    var b = bot.getDataRange().getValues();
+    for (var j = 1; j < b.length; j++) {
+      var x = b[j];
+      if (!x[0]) continue;
+      out.push({
+        sn: String(x[0] || ''), model: String(x[1] || ''), spec: String(x[2] || ''),
+        supplierAsal: String(x[4] || ''), lokasiLama: String(x[3] || ''),
+        alasan: String(x[9] || ''), tanggalKirim: String(x[5] || ''),
+        expedisi: '', tanggalInput: String(x[5] || ''), staffInput: String(x[8] || ''),
+        _t: _returnLogTs(String(x[5] || ''))
+      });
+    }
+  }
+
+  // Urutkan terbaru dulu
+  out.sort(function (a, b) { return b._t - a._t; });
+  return out;
 }
 
 // --- AUTH CONFIG: Save allowed Gmail addresses ---
