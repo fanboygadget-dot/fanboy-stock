@@ -972,7 +972,7 @@
               </div>
             </div>
             <div id="rtInfo" class="msg" style="display:none"></div>
-            <button class="btn btn-primary" style="position:relative;z-index:60" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
+            <button type="button" class="btn btn-primary" style="position:relative;z-index:60" onclick="submitReturnStok(event)"><i class="fas fa-undo-alt"></i> Proses Return Stok</button>
           </div>
         </div>
         <div class="card" style="margin-top:16px">
@@ -3099,9 +3099,12 @@
       if (!expedisi) { alert('Expedisi pengiriman wajib diisi'); return; }
       var parts = tanggal.split('-');
       var tglFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : tanggal;
-      if (!confirm('Return ' + snList.length + ' SN?\nKirim: ' + tglFmt + ' via ' + expedisi)) return;
+      // NOTE: confirm() sering diblokir di iframe GAS (dialog tidak muncul -> return false -> tombol diam).
+      // Ganti dengan konfirmasi non-blocking: tampilkan ringkasan lalu langsung proses.
       var btn = evt && evt.target ? evt.target : null;
       if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+      // pastikan dropdown autocomplete tertutup
+      document.querySelectorAll('.rtSnAc').forEach(function(l){ l.style.display = 'none'; });
       google.script.run
         .withSuccessHandler(function(res){
           var el = $('rtInfo');
